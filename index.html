@@ -209,6 +209,60 @@ PASS 1 (2026-09-30, Opus): KIT:CORE and Shell. COMPLETE.
   Known deferrals: Pass 5 builds the battle loop and gambit evaluation against these shapes. Arena and Simulator are still
     placeholders. Pass 6 owns the README and final polish.
 === END PASS 4b ===
+=== PASS 5: ENGINE:BATTLE, ARENA, TEST HARNESS (Opus), COMPLETE ===
+  Built: ENGINE:BATTLE (version 1.0.0, still self contained, no host globals), WS:ARENA css and js fences. Harness and fixtures
+    live in the execution workspace only (test/harness.js, test/fixture-saga.json, test/fixture-classic.json), never shipped.
+  Engine API: ENGINE_BATTLE {version, templates, evalExpr, gaugeMax, schedulers, progressions, init(data, seed, opts) -> state,
+    advance(state, input) -> {state, events, awaiting}, run(data, seed, policy, opts) -> {events, result},
+    replay(data, seed, opts, inputs) -> {state, events, awaiting}, forecast(state, n), suggest(state, policy) -> input}.
+    data = {ruleset, records (bundle.rules, keyed 'chr_' etc.), party, troopId, weatherId}. Party member = {chr, level,
+    equipment [eqp ids], materia [{eqp, slot, mat, ap}], job, jobLevel, cls, abilities [abl ids], row, hp, mp, limitLevel,
+    limitUses, kills, limitGauge}. opts = {waitMode, scheduler, tickCap (20000), attackPower, damageCap, limitRate, events,
+    noDamageLog}. advance input: null (run to the next decision), {type:'step', ticks}, {type:'command', actor, abl,
+    target | targets}, {type:'flee', actor}. advance deep clones; run and replay mutate only their own state.
+    result = {outcome win|lose|flee|timeout, ticks, turns, preemptive, rngCalls, rewards {gil, exp, ap}, partyEnd, resourcesUsed
+    {hpLost, mpSpent, hpPct, mpPct, items}, damageLog [{t, actor, target, side, value, element, crit, abl}], warnings}.
+    Events: tick (one per advance call, value = ticks advanced), ready, command, action, damage, heal, miss, status,
+    limitReady, ko, revive, end; each {type, t, actor, target, value, element, crit} plus abl, name, targets where useful.
+  Internals: mulberry32 in state.rng {a, calls}. Templates mirror WS.rules.FORMULA_LIB exactly (harness checks). Formulas
+    compile to ASTs at init (template, frm_ template with param overrides, or frm_ expression). Schedulers: atb (gauge 0 to
+    65536, fill from the atb formula or (spd+20)*8, wait mode stops time while a party member waits, chargeTicks wind up),
+    rounds (speed order, rng tiebreak, one tick per turn), conditional (CTB nextAt queue, charge adds to the next delay).
+    Progression: materia (grants by AP level, magic/summon/command commands, statMods, support on a linked pair:
+    all, element, addedEffect, counter, hpAbsorb, mpAbsorb), jobs, classes. Resolver: physical hit and crit from luck, formula,
+    var.std roll from the rng, back row halves physical, affinity (weak 2, resist 0.5, immune 0, absorb heals) then weather,
+    heal inversion on taxonomy.inverts, statuses with chance, freeze and empty gauges, tick effects, onHit cures.
+    Limit gauge fills by damage over max HP; full swaps Attack for the highest unlocked lim_; levels unlock by uses or kills.
+    Foes use bst_ (boss strategy) first, then their gmb_ rules, then a basic attack. Counters fire once per hit and never
+    answer a counter. Default party policy: heal the lowest ally under 35 percent, else the strongest affordable attack
+    (Limit weighted up). The built in attack is '_attack' with ruleset.battle.attackPower (default 12). Abilities may carry an
+    optional revive flag (a seam, not in the Codex yet).
+  Arena: setup panel (troop, weather, party pick up to 4, Custom level plus gear tier plus materia chips or job/class per
+    character, or a chapter Expected Party State, rows, seed with random, Wait or Active, speed 1x 2x 4x). Canvas at
+    charter.specs.resolution, integer scale, smoothing off, 3x5 pixel font. Foes are symmetric procedural silhouettes (arcTo
+    and rect only) seeded by the family id hash, tinted by the family palette, tier hue shifts the accent; party are tinted
+    rectangles with a weapon class glyph. Canvas HUD: foe names and HP bars, party HP, MP, time gauge, limit gauge, popups,
+    weather overlay, round counter, result banner. DOM command menu of 44px buttons (command, ability list, targets, All
+    foes/allies for all scope), Auto toggle, New battle, Replay same seed, Watch replay, Copy battle code (clipboard or a
+    dialog), Paste battle code, Battle log drawer, result card. Battle codes are base64 JSON {v, troopId, party, seed, inputs
+    [{t, input}], weatherId, opts, end}; playback applies inputs at their exact tick and reports whether the end matched.
+  Public API added: WS.arena {canEnter, render, buildParty(b, cfg), expectedParty(b, chapterId, chars), dataFor(b, troopId,
+    party, weatherId), start, preload(troopId, {source, seed}), playCode(code), encodeCode, decodeCode}. Setup kept in
+    saga146:arena:setup.
+  Acceptance: harness 14 of 14 (fence has no document, window, or Kit; API present; templates equal FORMULA_LIB; same seed
+    identical event streams across 3 runs for atb and rounds; atb, rounds, and conditional complete; level 20 party wins 20 of
+    20, level 1 party loses 20 of 20; heal inversion damages the unholy ghost and heals the air wolf; linked All plus Fire hits
+    all 3 foes and the unlinked pair hits 1; Kit.expr and evalExpr agree on 50 random expressions and 6 illegal ones; advance
+    does not mutate; hand driven battles replay identically from a base64 battle code in wait and active modes; Limit swap;
+    counters and a custom policy; jobs and freeze statuses). Browser (Chromium) at 1280 and 375: authored troop fought by
+    hand and won, Watch replay matched exactly, auto battle with a level 1 party lost, battle log drawer, no horizontal scroll,
+    no tap target under 44px, Night and Parchment, zero console errors. Syntax check, ASCII scan, forbidden API scan,
+    backlink count 3, fence order.
+  Known deferrals: Pass 6 builds the Simulator Worker from the ENGINE:BATTLE fence text (use run(data, seed, null,
+    {events:false}) and WS.arena.expectedParty / dataFor), the export of engine-battle.js and the manifest, and can call
+    WS.arena.preload(troopId) from flagged rows. Items in battle (Item command) are not modeled yet; inventory has no battle
+    state. Arena targets are chosen from buttons, not by tapping sprites.
+=== END PASS 5 ===
 === END BUILD LOG ===
 -->
 <!doctype html>
@@ -807,6 +861,53 @@ details.cx-block > .cx-block-sum { padding: 0; }
 }
 /* === WS:RULES CSS END === */
 /* === WS:ARENA CSS BEGIN === */
+.ar-wrap { display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 980px) { .ar-wrap { grid-template-columns: 330px minmax(0, 1fr); align-items: start; } }
+@media (max-width: 979px) { .ar-stagepanel { order: -1; } }
+.ar-empty .btn { margin-top: 8px; }
+.ar-setup .form-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); }
+.ar-setup h3 { margin: 12px 0 6px; }
+.ar-chars { display: flex; flex-wrap: wrap; gap: 6px; }
+.ar-pick { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line2); background: var(--bg2); color: var(--ink); font: inherit; font-weight: 700; cursor: pointer; }
+.ar-pick[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.ar-pick .dot { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.ar-cust { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.ar-crow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 8px; align-items: center; }
+.ar-seg { display: inline-flex; border: 1px solid var(--line2); border-radius: 10px; overflow: hidden; }
+.ar-seg button { min-height: 44px; min-width: 52px; padding: 0 12px; border: 0; background: var(--bg2); color: var(--ink2); font: inherit; font-weight: 700; cursor: pointer; }
+.ar-seg button + button { border-left: 1px solid var(--line2); }
+.ar-seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.ar-seedrow { display: flex; gap: 6px; }
+.ar-seedrow .inp { flex: 1; min-width: 0; font-family: var(--font-mono); }
+.ar-note { font-size: .85rem; color: var(--muted); margin: 4px 0 0; }
+.ar-stagepanel { padding: 12px; }
+.ar-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.ar-head .panel-title { margin: 0; }
+.ar-stage { position: relative; display: flex; justify-content: center; background: #07080d; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 8px 0; min-height: 120px; overflow: hidden; }
+.ar-stage canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; touch-action: manipulation; }
+.ar-empty { color: #c9c1ab; text-align: center; padding: 40px 16px; max-width: 420px; }
+.ar-empty h3 { font-family: var(--font-display); margin: 0 0 6px; color: #e3b453; }
+.ar-menu { margin-top: 10px; border: 1px solid var(--line2); border-radius: var(--radius-sm); background: var(--panel2); padding: 10px; }
+.ar-menu[hidden] { display: none; }
+.ar-menu-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; font-weight: 800; }
+.ar-menu-head .who { font-family: var(--font-display); color: var(--accent); letter-spacing: .04em; }
+.ar-menu-grid { display: grid; gap: 6px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr)); }
+.ar-menu-grid .btn { justify-content: space-between; white-space: normal; text-align: left; line-height: 1.15; padding: 6px 12px; }
+.ar-menu-grid .btn small { font-weight: 600; color: var(--muted); font-size: .78rem; }
+.ar-menu-grid .btn.limit { border-color: var(--accent); color: var(--accent); }
+.ar-controls { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; align-items: center; }
+.ar-result { margin-top: 10px; }
+.ar-result[hidden] { display: none; }
+.ar-result .kv { margin-top: 6px; }
+.ar-status { font-size: .88rem; color: var(--muted); }
+.ar-log { display: flex; flex-direction: column; gap: 2px; font-size: .9rem; }
+.ar-log .ln { display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 8px; padding: 3px 0; border-bottom: 1px solid var(--line); }
+.ar-log .ln .t { font-family: var(--font-mono); color: var(--muted); font-size: .78rem; text-align: right; }
+.ar-log .ln.k-damage .m { color: var(--danger); }
+.ar-log .ln.k-heal .m { color: var(--ok); }
+.ar-log .ln.k-ko .m, .ar-log .ln.k-end .m { font-weight: 800; }
+.ar-log .ln.k-limitReady .m { color: var(--accent); }
+.ar-code { width: 100%; font-family: var(--font-mono); font-size: .8rem; min-height: 120px; }
 /* === WS:ARENA CSS END === */
 /* === WS:SIM CSS BEGIN === */
 /* === WS:SIM CSS END === */
@@ -8133,8 +8234,9 @@ details.cx-block > .cx-block-sum { padding: 0; }
 // === ENGINE:BATTLE BEGIN ===
 var ENGINE_BATTLE = (function () {
   'use strict';
-  // Pure battle engine. This fence must stay self contained. Pass 4a adds the safe expression evaluator, a duplicate
-  // of the shared expression core; Pass 5 adds the templates and the turn loop.
+  // Pure battle engine. This fence must stay self contained: no host globals and no outer variables. Pass 4a added the
+  // safe expression evaluator (a duplicate of the shared expression core); Pass 5 adds the templates, the seeded rng,
+  // the scheduler and progression registries, the resolver, gambits, counters, Limits, and init / advance / run / replay.
   var expr = (function () {
     var FUNCS = { min: [1, 99], max: [1, 99], floor: [1, 1], ceil: [1, 1], round: [1, 1], clamp: [3, 3], pow: [2, 2], sqrt: [1, 1] };
     var FUNC_NAMES = ['min', 'max', 'floor', 'ceil', 'round', 'clamp', 'pow', 'sqrt'];
@@ -8374,23 +8476,1850 @@ var ENGINE_BATTLE = (function () {
     }
   return { parse: parse, evaluate: evaluate, variables: variables };
   })();
-  return { version: '0.1.0', templates: {}, evalExpr: expr, init: null, advance: null, run: null };
+  // ------------------------------------------------------------------ Pass 5: templates, rng, battle loop
+  var VERSION = '1.0.0';
+  var GAUGE_MAX = 65536;
+  // Template registry. Parameter names, defaults and expressions mirror WS.rules.FORMULA_LIB exactly (the harness checks).
+  var TEMPLATES = {
+    'phys.ff6': { id: 'phys.ff6', role: 'phys', kind: 'damage', expr: 'max(p.floor, floor((power + a.level * a.level * a.str / p.levelDiv) * (p.defBase - min(t.def, p.defBase - 1)) / p.defBase * p.mult))', params: { levelDiv: 256, defBase: 256, mult: 1, floor: 1 } },
+    'mag.ff6': { id: 'mag.ff6', role: 'mag', kind: 'damage', expr: 'max(p.floor, floor((power * p.powerMult + a.level * a.mag * power / p.levelDiv) * (p.defBase - min(t.mdef, p.defBase - 1)) / p.defBase))', params: { powerMult: 4, levelDiv: 32, defBase: 256, floor: 1 } },
+    'phys.sub': { id: 'phys.sub', role: 'phys', kind: 'damage', expr: 'max(p.floor, floor(a.str * p.atkMult + power - t.def * p.defMult))', params: { atkMult: 1, defMult: 0.5, floor: 1 } },
+    'mag.flat': { id: 'mag.flat', role: 'mag', kind: 'damage', expr: 'max(p.floor, floor(power + a.mag * p.magMult - t.mdef * p.mdefMult))', params: { magMult: 1, mdefMult: 0.5, floor: 1 } },
+    'heal.std': { id: 'heal.std', role: 'heal', kind: 'heal', expr: 'max(p.floor, floor((power + a.mag * p.magMult) * p.mult))', params: { magMult: 2, mult: 1, floor: 1 } },
+    'var.std': { id: 'var.std', role: 'var', kind: 'variance', expr: '1 + p.spread * (2 * p.roll - 1)', params: { spread: 0.1, roll: 0.5 } },
+    'exp.curve': { id: 'exp.curve', role: 'exp', kind: 'curve', expr: 'floor(p.base * pow(max(a.level - 1, 0), p.exponent))', params: { base: 40, exponent: 2.1 } },
+    'ap.curve': { id: 'ap.curve', role: 'ap', kind: 'curve', expr: 'floor(p.base * pow(p.growth, max(a.level - 1, 0)))', params: { base: 100, growth: 2 } },
+    'atb.fill': { id: 'atb.fill', role: 'atb', kind: 'rate', expr: 'floor((a.spd + p.spdOffset) * p.rate)', params: { spdOffset: 20, rate: 8 } }
+  };
+  var ABL_ROLE = { attack: 'phys', magic: 'mag', heal: 'heal', summon: 'mag', enemy: 'phys', limit: 'phys', command: 'phys' };
+  var PHYS_KINDS = { attack: 1, enemy: 1, limit: 1, command: 1 };
+  var AFF_MULT = { weak: 2, normal: 1, resist: 0.5, immune: 0, absorb: -1 };
+  var SCHEDULERS = { atb: 1, rounds: 1, conditional: 1 };
+  var PROGRESSIONS = { materia: 1, jobs: 1, classes: 1 };
+  var EV = null; // event sink for the call in progress (single threaded)
+
+  function isObj(o) { return o !== null && typeof o === 'object' && !Array.isArray(o); }
+  function arr(a) { return Array.isArray(a) ? a : []; }
+  function clone(o) { return o === undefined ? undefined : JSON.parse(JSON.stringify(o)); }
+  function num(v, d) { return typeof v === 'number' && isFinite(v) ? v : (d === undefined ? 0 : d); }
+  function clampN(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+  function prefixOf(id) { var m = /^([a-z]{3}_)/.exec(typeof id === 'string' ? id : ''); return m ? m[1] : null; }
+  function numParams(o) { var out = {}; if (isObj(o)) Object.keys(o).forEach(function (k) { if (typeof o[k] === 'number' && isFinite(o[k])) out[k] = o[k]; }); return out; }
+
+  // mulberry32 seeded by an integer. The state and the call count live in the battle state.
+  function mkRng(seed) { return { a: (Math.floor(num(seed, 1)) | 0), calls: 0 }; }
+  function rnd(S) {
+    var a = (S.rng.a + 0x6D2B79F5) | 0, t;
+    S.rng.a = a; S.rng.calls++;
+    t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+
+  function emit(S, type, o) {
+    if (!EV) return;
+    o = o || {};
+    var e = { type: type, t: S.t, actor: o.actor == null ? null : o.actor, target: o.target == null ? null : o.target, value: o.value === undefined ? null : o.value, element: o.element || null, crit: !!o.crit };
+    if (o.abl) e.abl = o.abl;
+    if (o.name) e.name = o.name;
+    if (o.targets) e.targets = o.targets;
+    EV.push(e);
+  }
+
+  // ------------------------------------------------------------------ formulas
+  function fxFrom(db, id, R) {
+    if (!id) return null;
+    if (db.fx[id]) return id;
+    var src = null, t, rec;
+    if (TEMPLATES[id]) { t = TEMPLATES[id]; src = { expr: t.expr, params: clone(t.params) }; }
+    else if (prefixOf(id) === 'frm_') {
+      rec = R.frm_ && R.frm_[id];
+      if (isObj(rec)) {
+        if (rec.template && TEMPLATES[rec.template]) { t = TEMPLATES[rec.template]; src = { expr: t.expr, params: Object.assign(clone(t.params), numParams(rec.params)) }; }
+        else if (typeof rec.expr === 'string' && rec.expr.trim()) src = { expr: rec.expr, params: numParams(rec.params) };
+      }
+    }
+    if (!src) return null;
+    try { db.fx[id] = { ast: expr.parse(src.expr), params: src.params }; }
+    catch (e) { db.warnings.push('Formula ' + id + ' does not parse: ' + e.message); return null; }
+    return id;
+  }
+  function scopeOf(u) {
+    var o = { level: u ? u.level : 1 }, k;
+    if (u) for (k in u.stats) o[k] = u.stats[k];
+    return o;
+  }
+  function evalF(S, fid, a, t, power, extra, fallback) {
+    var f = fid && S.db.fx[fid], p, k;
+    if (!f) return fallback;
+    p = {};
+    for (k in f.params) p[k] = f.params[k];
+    if (extra) for (k in extra) p[k] = extra[k];
+    try { return expr.evaluate(f.ast, { a: a, t: t, power: num(power), p: p }); }
+    catch (e) {
+      if (S.db.warnings.length < 20) S.db.warnings.push('Formula ' + fid + ': ' + e.message);
+      return fallback;
+    }
+  }
+  function roleFx(S, role) { return S.db.roles[role] || null; }
+
+  // ------------------------------------------------------------------ compile the data into a compact db
+  function compile(data, opts) {
+    var rs = isObj(data.ruleset) ? data.ruleset : {}, R = isObj(data.records) ? data.records : {};
+    var battle = isObj(rs.battle) ? rs.battle : {}, db, tax = isObj(rs.taxonomy) ? rs.taxonomy : {};
+    db = {
+      abl: {}, sta: {}, gmb: {}, fx: {}, roles: {}, warnings: [],
+      stats: arr(rs.stats).filter(isObj).map(function (s) { return { key: String(s.key), min: num(s.min, 0), max: num(s.max, 999999) }; }).filter(function (s) { return s.key; }),
+      elements: arr(rs.elements).map(function (e) { return isObj(e) ? String(e.key) : String(e); }).filter(Boolean),
+      relations: arr(rs.elementRelations).filter(function (r) { return isObj(r) && (!r.kind || r.kind === 'opposed'); }).map(function (r) { return [String(r.a), String(r.b)]; }),
+      inverts: arr(tax.inverts).map(String),
+      weather: {},
+      attackPower: num(opts.attackPower, num(battle.attackPower, 12)),
+      damageCap: num(opts.damageCap, num(battle.damageCap, 9999)),
+      limitRate: Math.max(0, num(opts.limitRate, num(battle.limitRate, 1)))
+    };
+    var fs = isObj(rs.formulaSet) ? rs.formulaSet : {};
+    ['phys', 'mag', 'heal', 'var', 'atb', 'exp', 'ap'].forEach(function (role) { var id = fxFrom(db, fs[role], R); if (id) db.roles[role] = id; });
+    var w = data.weatherId && R.wth_ && R.wth_[data.weatherId];
+    if (isObj(w) && isObj(w.elementMultipliers)) Object.keys(w.elementMultipliers).forEach(function (k) { var v = w.elementMultipliers[k]; if (typeof v === 'number' && isFinite(v)) db.weather[k] = v; });
+    db.weatherId = isObj(w) ? data.weatherId : null;
+    db.attack = { id: '_attack', name: 'Attack', kind: 'attack', power: db.attackPower, targeting: { side: 'foe', scope: 'single' }, cost: {}, statusEffects: [], chargeTicks: 0 };
+    return db;
+  }
+  function rec(R, id) { var p = prefixOf(id); return p && isObj(R[p]) && isObj(R[p][id]) ? R[p][id] : null; }
+  function addAbl(db, R, id) {
+    if (!id) return null;
+    if (id === '_attack') return db.attack;
+    if (db.abl[id]) return db.abl[id];
+    var r = rec(R, id), a;
+    if (!r || prefixOf(id) !== 'abl_') return null;
+    a = {
+      id: id, name: String(r.name || id), kind: String(r.kind || 'attack'), element: r.element || null, power: num(r.power),
+      cost: { mp: num(r.cost && r.cost.mp) }, chargeTicks: Math.max(0, Math.floor(num(r.chargeTicks))),
+      targeting: { side: (r.targeting && r.targeting.side) || 'foe', scope: (r.targeting && r.targeting.scope) || 'single' },
+      statusEffects: arr(r.statusEffects).filter(function (s) { return isObj(s) && s.sta; }).map(function (s) { return { sta: s.sta, chance: num(s.chance, 1) }; }),
+      fx: fxFrom(db, r.formula, R), revive: !!r.revive
+    };
+    a.statusEffects.forEach(function (s) { addSta(db, R, s.sta); });
+    db.abl[id] = a;
+    return a;
+  }
+  function addSta(db, R, id) {
+    if (db.sta[id]) return db.sta[id];
+    var r = rec(R, id);
+    if (!r) return null;
+    db.sta[id] = {
+      id: id, name: String(r.name || id), gauge: r.gauge || 'normal',
+      tick: { kind: (r.tickEffect && r.tickEffect.kind) || 'none', percent: num(r.tickEffect && r.tickEffect.percent) },
+      duration: Math.max(0, Math.floor(num(r.duration))), onHit: !!(r.cure && r.cure.onHit)
+    };
+    return db.sta[id];
+  }
+  function addRules(db, R, id, rules, counters) {
+    var g = { rules: [], counters: [] };
+    arr(rules).forEach(function (x) {
+      if (!isObj(x)) return;
+      var abl = x.action && x.action.abl;
+      if (!addAbl(db, R, abl)) return;
+      var c = isObj(x.condition) ? x.condition : { kind: 'always' };
+      if ((c.kind === 'targetHasStatus' || c.kind === 'targetLacksStatus') && c.param) addSta(db, R, String(c.param).trim());
+      g.rules.push({ condition: { kind: c.kind || 'always', param: c.param == null ? '' : String(c.param) }, target: { selector: (x.target && x.target.selector) || 'randomFoe' }, action: { abl: abl } });
+    });
+    arr(counters).forEach(function (x) {
+      if (!isObj(x) || !x.trigger) return;
+      var abl = x.action && x.action.abl;
+      if (!addAbl(db, R, abl)) return;
+      g.counters.push({ trigger: x.trigger, abl: abl });
+    });
+    db.gmb[id] = g;
+    return id;
+  }
+
+  // ------------------------------------------------------------------ units
+  function statsFor(db, base, growth, level) {
+    var out = {};
+    db.stats.forEach(function (s) {
+      var v = Math.round(num(base && base[s.key]) + num(growth && growth[s.key]) * (level - 1));
+      out[s.key] = clampN(v, s.min, s.max);
+    });
+    return out;
+  }
+  function groupFor(kind) {
+    if (kind === 'magic' || kind === 'heal' || kind === 'status') return 'magic';
+    if (kind === 'summon') return 'summon';
+    if (kind === 'limit' || kind === 'passive') return null;
+    return 'skill';
+  }
+  function matLevel(m, ap) {
+    var lv = 1;
+    arr(m.apThresholds).forEach(function (th) { if (typeof th === 'number' && ap >= th) lv++; });
+    return lv;
+  }
+  var PROGRESSION = {
+    // Slotted materia and linked pairs produce commands, abilities and stat mods. Support materia modifies its linked neighbor.
+    materia: function (db, R, m, u, grant, mods) {
+      var slots = arr(m.materia).filter(function (x) { return isObj(x) && rec(R, x.mat); });
+      var info = slots.map(function (x) {
+        var mr = rec(R, x.mat), lv = matLevel(mr, num(x.ap)), abls = [];
+        arr(mr.grants).forEach(function (g) {
+          if (!isObj(g) || num(g.level, 1) > lv) return;
+          if (g.abl && addAbl(db, R, g.abl)) abls.push(g.abl);
+          if (isObj(g.statMods)) Object.keys(g.statMods).forEach(function (k) { mods[k] = num(mods[k]) + num(g.statMods[k]); });
+        });
+        return { x: x, rec: mr, level: lv, abls: abls };
+      });
+      info.forEach(function (it) {
+        var kind = it.rec.kind;
+        if (kind === 'support') return;
+        it.abls.forEach(function (id) {
+          var a = db.abl[id];
+          if (kind === 'command') grant('cmd:' + id, a.name, id);
+          else if (kind === 'summon') grant('summon', 'Summon', id);
+          else if (kind === 'magic') grant('magic', 'Magic', id);
+          else { var gr = groupFor(a.kind); if (gr) grant(gr, gr === 'magic' ? 'Magic' : gr === 'summon' ? 'Summon' : 'Skill', id); }
+        });
+      });
+      // linked support materia
+      info.forEach(function (it) {
+        if (it.rec.kind !== 'support') return;
+        var eq = rec(R, it.x.eqp), links = eq && isObj(eq.slotLayout) ? arr(eq.slotLayout.links) : [], n = null, cnt = eq && isObj(eq.slotLayout) ? num(eq.slotLayout.count) : 0;
+        links.forEach(function (l) {
+          if (n || !Array.isArray(l) || l.length !== 2) return;
+          var other = l[0] === it.x.slot ? l[1] : l[1] === it.x.slot ? l[0] : null;
+          if (other === null || other >= cnt || it.x.slot >= cnt) return;
+          info.forEach(function (o) { if (!n && o !== it && o.x.eqp === it.x.eqp && o.x.slot === other) n = o; });
+        });
+        if (!n) return;
+        var eff = it.rec.supportEffect;
+        u.supports.push({ mat: it.x.mat, effect: eff, neighbor: n.x.mat });
+        if (eff === 'all' || eff === 'hpAbsorb' || eff === 'mpAbsorb') {
+          n.abls.forEach(function (id) { var md = u.mods[id] || (u.mods[id] = {}); md[eff === 'all' ? 'all' : eff] = true; });
+        } else if (eff === 'element') {
+          if (n.rec.element) u.attackElement = n.rec.element;
+        } else if (eff === 'addedEffect') {
+          n.abls.forEach(function (id) { db.abl[id].statusEffects.forEach(function (s) { u.addedEffects.push({ sta: s.sta, chance: s.chance }); }); });
+        } else if (eff === 'counter') {
+          u.counter = n.abls[0] || '_attack';
+        }
+      });
+    },
+    jobs: function (db, R, m, u, grant, mods) {
+      var j = rec(R, m.job), jl = num(m.jobLevel, u.level);
+      if (!j) return;
+      arr(j.abilities).forEach(function (x) { if (isObj(x) && num(x.level, 1) <= jl && addAbl(db, R, x.abl)) { var a = db.abl[x.abl], g = groupFor(a.kind); if (g) grant(g, g === 'magic' ? 'Magic' : g === 'summon' ? 'Summon' : 'Skill', x.abl); } });
+      if (isObj(j.statMods)) Object.keys(j.statMods).forEach(function (k) { mods[k] = num(mods[k]) + num(j.statMods[k]); });
+    },
+    classes: function (db, R, m, u, grant, mods) {
+      var c = rec(R, m.cls);
+      if (!c) return;
+      arr(c.skillTree).forEach(function (x) { if (isObj(x) && num(x.level, 1) <= u.level && addAbl(db, R, x.abl)) { var a = db.abl[x.abl], g = groupFor(a.kind); if (g) grant(g, g === 'magic' ? 'Magic' : g === 'summon' ? 'Summon' : 'Skill', x.abl); } });
+      if (isObj(c.statMods)) Object.keys(c.statMods).forEach(function (k) { mods[k] = num(mods[k]) + num(c.statMods[k]); });
+    }
+  };
+
+  function partyUnit(db, R, m, i, prog) {
+    var c = rec(R, m.chr);
+    if (!c) { db.warnings.push('Party member ' + (i + 1) + ' has no character record.'); return null; }
+    var L = clampN(Math.floor(num(m.level, 1)), 1, 99), mods = {}, cmds = [], byKey = {};
+    var u = {
+      uid: 'p' + i, side: 'party', ref: m.chr, name: String(c.name || m.chr), level: L, row: m.row === 'back' ? 'back' : 'front',
+      weaponClass: c.weaponClass || '', stats: statsFor(db, c.baseStats, c.growth, L), mods: {}, supports: [], addedEffects: [],
+      attackElement: null, counter: null, affinity: {}, tax: null, gambit: null
+    };
+    arr(m.equipment).forEach(function (eid) {
+      var e = rec(R, eid);
+      if (!e || !isObj(e.stats)) return;
+      Object.keys(e.stats).forEach(function (k) { if (u.stats[k] !== undefined) u.stats[k] += Math.round(num(e.stats[k])); });
+    });
+    function grant(key, label, id) {
+      if (!byKey[key]) { byKey[key] = { key: key, label: label, abls: [] }; cmds.push(byKey[key]); }
+      if (byKey[key].abls.indexOf(id) < 0) byKey[key].abls.push(id);
+    }
+    if (PROGRESSION[prog]) PROGRESSION[prog](db, R, m, u, grant, mods);
+    arr(m.abilities).forEach(function (id) { var a = addAbl(db, R, id), g; if (a) { g = groupFor(a.kind); if (g) grant(g, g === 'magic' ? 'Magic' : g === 'summon' ? 'Summon' : 'Skill', id); } });
+    db.stats.forEach(function (s) { if (mods[s.key]) u.stats[s.key] = clampN(Math.round(u.stats[s.key] * (1 + mods[s.key] / 100)), s.min, s.max); });
+    u.statMods = mods;
+    u.commands = cmds.sort(function (a, b) { var o = { magic: 1, summon: 2 }; return (o[a.key] || 3) - (o[b.key] || 3); });
+    u.maxHp = Math.max(1, num(u.stats.hp, 100));
+    u.maxMp = Math.max(0, num(u.stats.mp, 0));
+    u.hp = m.hp != null ? clampN(Math.floor(num(m.hp)), 0, u.maxHp) : u.maxHp;
+    u.mp = m.mp != null ? clampN(Math.floor(num(m.mp)), 0, u.maxMp) : u.maxMp;
+    u.limits = arr(c.limitTree).map(function (lid) { return rec(R, lid) ? { id: lid, r: rec(R, lid) } : null; }).filter(Boolean)
+      .filter(function (x) { return addAbl(db, R, x.r.action); })
+      .map(function (x) { return { id: x.id, level: clampN(Math.floor(num(x.r.level, 1)), 1, 4), abl: x.r.action, uses: num(x.r.unlock && x.r.unlock.uses), kills: num(x.r.unlock && x.r.unlock.kills) }; })
+      .sort(function (a, b) { return a.level - b.level; });
+    u.limit = { gauge: clampN(num(m.limitGauge), 0, 1), level: clampN(Math.floor(num(m.limitLevel, 1)), 1, 4), uses: num(m.limitUses), usesAtLevel: 0, kills: num(m.kills) };
+    if (u.counter) addAbl(db, R, u.counter);
+    return u;
+  }
+
+  function affinityFor(db, famType, absorbOwn, overrides) {
+    var out = {}, opp = [];
+    db.relations.forEach(function (p) { if (p[0] === famType) opp.push(p[1]); if (p[1] === famType) opp.push(p[0]); });
+    db.elements.forEach(function (k) {
+      if (famType && k === famType) out[k] = absorbOwn ? 'absorb' : 'resist';
+      else if (opp.indexOf(k) >= 0) out[k] = 'weak';
+      else out[k] = 'normal';
+    });
+    if (isObj(overrides)) Object.keys(overrides).forEach(function (k) { if (AFF_MULT[overrides[k]] !== undefined) out[k] = overrides[k]; });
+    return out;
+  }
+
+  function foeUnits(db, R, troopId) {
+    var t = rec(R, troopId), out = [], names = {};
+    if (!t) { db.warnings.push('Troop ' + troopId + ' was not found.'); return out; }
+    db.troop = { id: troopId, name: String(t.name || troopId), noEscape: !!(t.flags && t.flags.noEscape), preemptive: num(t.flags && t.flags.preemptiveChance) };
+    var bst = {};
+    Object.keys(isObj(R.bst_) ? R.bst_ : {}).forEach(function (id) { var b = R.bst_[id]; if (isObj(b) && b.boss && !bst[b.boss]) bst[b.boss] = id; });
+    arr(t.members).forEach(function (mb, i) {
+      if (!isObj(mb)) return;
+      var e = rec(R, mb.enm);
+      if (!e) { db.warnings.push('Troop member ' + (i + 1) + ' references a missing enemy.'); return; }
+      var fam = rec(R, e.family) || {}, st = {}, gid = null;
+      db.stats.forEach(function (s) { st[s.key] = clampN(Math.round(num(e.stats && e.stats[s.key])), s.min, s.max); });
+      if (bst[mb.enm]) gid = addRules(db, R, bst[mb.enm], R.bst_[bst[mb.enm]].rules, R.bst_[bst[mb.enm]].counters);
+      else if (e.gambits && rec(R, e.gambits)) gid = addRules(db, R, e.gambits, rec(R, e.gambits).rules, rec(R, e.gambits).counters);
+      var nm = String(e.name || mb.enm);
+      names[nm] = (names[nm] || 0) + 1;
+      out.push({
+        uid: 'e' + i, side: 'foe', ref: mb.enm, name: nm, level: clampN(Math.floor(num(e.level, 1)), 1, 99), row: mb.row === 'back' ? 'back' : 'front',
+        fam: e.family || null, tier: Math.max(1, Math.floor(num(e.tier, 1))), palette: isObj(fam.palette) ? { base: fam.palette.base || null, accent: fam.palette.accent || null } : { base: null, accent: null },
+        tax: fam.type || null, affinity: affinityFor(db, fam.type || null, !!fam.absorbsOwnType, e.affinityOverrides),
+        stats: st, maxHp: Math.max(1, num(st.hp, 1)), maxMp: Math.max(0, num(st.mp)), gambit: gid, isBoss: !!e.isBoss,
+        gil: num(e.gil), exp: num(e.exp), ap: num(e.ap), mods: {}, addedEffects: [], attackElement: null, counter: null, commands: [], limits: [], limit: null
+      });
+    });
+    out.forEach(function (u) { u.hp = u.maxHp; u.mp = u.maxMp; });
+    // Letter suffixes for repeated names
+    var seen = {};
+    out.forEach(function (u) { if (names[u.name] > 1) { seen[u.name] = (seen[u.name] || 0) + 1; u.name = u.name + ' ' + String.fromCharCode(64 + seen[u.name]); } });
+    return out;
+  }
+
+  function fillOf(S, u) {
+    var f = evalF(S, roleFx(S, 'atb'), scopeOf(u), {}, 0, null, null);
+    if (f == null) f = Math.floor((num(u.stats.spd, 10) + 20) * 8);
+    return Math.max(1, Math.floor(f));
+  }
+  function delayOf(S, u) { return Math.ceil(GAUGE_MAX / u.fill); }
+
+  // ------------------------------------------------------------------ init
+  function init(data, seed, opts) {
+    data = isObj(data) ? data : {};
+    opts = isObj(opts) ? opts : {};
+    var rs = isObj(data.ruleset) ? data.ruleset : {}, R = isObj(data.records) ? data.records : {};
+    var db = compile(data, opts);
+    var sched = SCHEDULERS[opts.scheduler] ? opts.scheduler : SCHEDULERS[rs.scheduler] ? rs.scheduler : 'atb';
+    var prog = PROGRESSIONS[rs.progression] ? rs.progression : null;
+    var battle = isObj(rs.battle) ? rs.battle : {};
+    var S = {
+      v: VERSION, seed: Math.floor(num(seed, 1)) | 0, rng: mkRng(seed), t: 0, turns: 0, sched: sched, progression: prog,
+      waitMode: opts.waitMode != null ? !!opts.waitMode : battle.waitMode != null ? !!battle.waitMode : true,
+      tickCap: Math.max(10, Math.floor(num(opts.tickCap, 20000))), gaugeMax: GAUGE_MAX,
+      db: db, units: [], readyQueue: [], awaiting: null, round: null, preemptive: false, result: null,
+      res: { mpSpent: 0, hpStart: 0, hpMax: 0, mpMax: 0, itemsUsed: 0 }, damageLog: [], lastAttacker: {}, noLog: !!opts.noDamageLog
+    };
+    arr(data.party).forEach(function (m, i) { if (isObj(m)) { var u = partyUnit(db, R, m, i, prog); if (u) S.units.push(u); } });
+    foeUnits(db, R, data.troopId).forEach(function (u) { S.units.push(u); });
+    S.units.forEach(function (u) {
+      u.gauge = 0; u.ready = false; u.charging = null; u.statuses = []; u.ko = u.hp <= 0; u.turns = 0; u.kills = u.limit ? u.limit.kills : 0;
+      u.fill = fillOf(S, u); u.nextAt = 0; u.frozenTicks = 0; u.limitFlag = false;
+    });
+    S.units.forEach(function (u) { if (u.side === 'party') { S.res.hpStart += u.hp; S.res.hpMax += u.maxHp; S.res.mpMax += u.maxMp; } });
+    S.preemptive = !!(db.troop && db.troop.preemptive > 0 && rnd(S) < db.troop.preemptive);
+    S.units.forEach(function (u) {
+      if (u.ko) return;
+      if (sched === 'atb') u.gauge = S.preemptive && u.side === 'party' ? GAUGE_MAX - 1 : Math.floor(rnd(S) * GAUGE_MAX * 0.5);
+      else if (sched === 'conditional') u.nextAt = S.preemptive && u.side === 'party' ? 0 : Math.floor(delayOf(S, u) * (0.25 + rnd(S) * 0.5));
+    });
+    if (!partyOf(S).length || !foesOf(S).length) S.result = finish(S, partyOf(S).length ? 'win' : 'lose', true);
+    return S;
+  }
+
+  // ------------------------------------------------------------------ helpers over units
+  function unit(S, uid) { for (var i = 0; i < S.units.length; i++) if (S.units[i].uid === uid) return S.units[i]; return null; }
+  function sideOf(S, side, alive) { return S.units.filter(function (u) { return u.side === side && (!alive || !u.ko); }); }
+  function partyOf(S) { return sideOf(S, 'party', false); }
+  function foesOf(S) { return sideOf(S, 'foe', false); }
+  function other(side) { return side === 'party' ? 'foe' : 'party'; }
+  function frac(u) { return u.maxHp ? u.hp / u.maxHp : 0; }
+  function hasSta(u, id) { for (var i = 0; i < u.statuses.length; i++) if (u.statuses[i].sta === id) return true; return false; }
+  function blockedBy(S, u) {
+    for (var i = 0; i < u.statuses.length; i++) { var d = S.db.sta[u.statuses[i].sta]; if (d && (d.gauge === 'freeze' || d.gauge === 'empty')) return d.gauge; }
+    return null;
+  }
+  function ablOf(S, id) { return id === '_attack' ? S.db.attack : S.db.abl[id] || null; }
+  function affordable(u, a) { return !!a && u.mp >= num(a.cost && a.cost.mp); }
+
+  // ------------------------------------------------------------------ statuses
+  function applyStatus(S, actor, u, staId) {
+    var d = S.db.sta[staId];
+    if (!d || u.ko) return;
+    var had = false;
+    u.statuses.forEach(function (s) { if (s.sta === staId) { s.left = d.duration || -1; had = true; } });
+    if (!had) u.statuses.push({ sta: staId, left: d.duration || -1 });
+    if (d.gauge === 'empty' && S.sched === 'atb') u.gauge = 0;
+    if (d.gauge !== 'normal') { u.ready = false; u.charging = null; dropReady(S, u); }
+    emit(S, 'status', { actor: actor ? actor.uid : null, target: u.uid, value: staId, name: d.name });
+    counters(S, u, actor, 'onStatus', null);
+  }
+  function removeStatus(S, u, staId, why) {
+    var before = u.statuses.length;
+    u.statuses = u.statuses.filter(function (s) { return s.sta !== staId; });
+    if (u.statuses.length !== before) emit(S, 'status', { target: u.uid, value: '-' + staId, name: why || 'cured' });
+  }
+  // Runs at the start of a unit's own turn (or once per skipped turn): tick effects, then durations.
+  function statusTurn(S, u) {
+    u.statuses.slice().forEach(function (s) {
+      var d = S.db.sta[s.sta], v;
+      if (!d || u.ko) return;
+      if (d.tick.kind === 'damage' && d.tick.percent > 0) {
+        v = Math.max(1, Math.floor(u.maxHp * d.tick.percent / 100));
+        dealDamage(S, null, u, v, null, false, null);
+      } else if (d.tick.kind === 'heal' && d.tick.percent > 0) {
+        v = Math.max(1, Math.floor(u.maxHp * d.tick.percent / 100));
+        u.hp = Math.min(u.maxHp, u.hp + v);
+        emit(S, 'heal', { target: u.uid, value: v });
+      } else if (d.tick.kind === 'mpDrain' && d.tick.percent > 0) {
+        u.mp = Math.max(0, u.mp - Math.max(1, Math.floor(u.maxMp * d.tick.percent / 100)));
+      }
+      if (s.left > 0) { s.left--; if (s.left === 0) removeStatus(S, u, s.sta, 'wore off'); }
+    });
+  }
+
+  // ------------------------------------------------------------------ damage, KO, limits, counters
+  function dropReady(S, u) {
+    S.readyQueue = S.readyQueue.filter(function (x) { return x !== u.uid; });
+    if (S.awaiting && S.awaiting.actor === u.uid) { S.awaiting = null; nextAwaiting(S); }
+  }
+  function ko(S, u, killer) {
+    u.ko = true; u.hp = 0; u.gauge = 0; u.ready = false; u.charging = null; u.statuses = [];
+    if (u.limit) u.limit.gauge = 0;
+    dropReady(S, u);
+    emit(S, 'ko', { actor: killer ? killer.uid : null, target: u.uid });
+    if (killer && killer.side !== u.side) {
+      killer.kills++;
+      if (killer.limit) { killer.limit.kills++; unlockLimits(S, killer); }
+    }
+    sideOf(S, u.side, true).forEach(function (a) { counters(S, a, killer, 'onAllyKo', null); });
+  }
+  function unlockLimits(S, u) {
+    if (!u.limit || !u.limits.length) return;
+    var next = null;
+    u.limits.forEach(function (l) { if (!next && l.level === u.limit.level + 1) next = l; });
+    if (!next) return;
+    if ((next.uses > 0 && u.limit.usesAtLevel >= next.uses) || (next.kills > 0 && u.limit.kills >= next.kills)) {
+      u.limit.level = next.level; u.limit.usesAtLevel = 0;
+      emit(S, 'limitReady', { target: u.uid, value: 'level' + next.level, name: 'Limit level ' + next.level });
+    }
+  }
+  function currentLimit(u) {
+    var best = null;
+    if (!u.limit) return null;
+    u.limits.forEach(function (l) { if (l.level <= u.limit.level && (!best || l.level >= best.level)) best = l; });
+    return best;
+  }
+  function dealDamage(S, actor, u, v, element, crit, abl) {
+    var lowBefore = frac(u) >= 0.25;
+    v = Math.max(0, Math.min(S.db.damageCap, Math.round(v)));
+    u.hp = Math.max(0, u.hp - v);
+    emit(S, 'damage', { actor: actor ? actor.uid : null, target: u.uid, value: v, element: element, crit: crit, abl: abl ? abl.id : null });
+    if (!S.noLog) S.damageLog.push({ t: S.t, actor: actor ? actor.uid : null, target: u.uid, side: u.side, value: v, element: element || null, crit: !!crit, abl: abl ? abl.id : null });
+    if (v > 0) {
+      u.statuses.slice().forEach(function (s) { var d = S.db.sta[s.sta]; if (d && d.onHit) removeStatus(S, u, s.sta, 'woke'); });
+      if (u.limit && u.limits.length && !u.ko && u.hp > 0) {
+        var was = u.limit.gauge;
+        u.limit.gauge = Math.min(1, u.limit.gauge + v / u.maxHp * S.db.limitRate);
+        if (was < 1 && u.limit.gauge >= 1) emit(S, 'limitReady', { target: u.uid, value: 'full', name: 'Limit ready' });
+      }
+    }
+    if (actor) S.lastAttacker[u.uid] = actor.uid;
+    if (u.hp <= 0 && !u.ko) { ko(S, u, actor); return v; }
+    if (actor && abl && v > 0) {
+      counters(S, u, actor, PHYS_KINDS[abl.kind] ? 'onPhysical' : 'onMagic', abl);
+      counters(S, u, actor, 'onDamaged', abl);
+      if (lowBefore && frac(u) < 0.25) counters(S, u, actor, 'onLowHp', abl);
+    }
+    return v;
+  }
+  function healUnit(S, actor, u, v, abl) {
+    v = Math.max(0, Math.min(S.db.damageCap, Math.round(v)));
+    var before = u.hp;
+    u.hp = Math.min(u.maxHp, u.hp + v);
+    emit(S, 'heal', { actor: actor ? actor.uid : null, target: u.uid, value: u.hp - before, abl: abl ? abl.id : null });
+  }
+  // A counter fires at most once per hit and never answers another counter.
+  function counters(S, u, attacker, trigger, abl) {
+    if (!u || u.ko || S.inCounter || !attacker || attacker.side === u.side && trigger !== 'onAllyKo') return;
+    if (trigger === 'onAllyKo' && (!attacker || attacker.side === u.side)) return;
+    var pick = null, a;
+    if (u.gambit && S.db.gmb[u.gambit]) {
+      S.db.gmb[u.gambit].counters.forEach(function (c) { if (!pick && c.trigger === trigger) pick = c.abl; });
+    }
+    if (!pick && u.counter && trigger === 'onPhysical' && rnd(S) < 0.5) pick = u.counter;
+    a = ablOf(S, pick);
+    if (!a || !affordable(u, a) || attacker.ko) return;
+    var targets = a.targeting.side === 'ally' || a.targeting.side === 'self' ? [u.uid] : [attacker.uid];
+    if (a.targeting.scope === 'all' || (u.mods[a.id] && u.mods[a.id].all)) targets = sideOf(S, a.targeting.side === 'ally' || a.targeting.side === 'self' ? u.side : attacker.side, true).map(function (x) { return x.uid; });
+    S.inCounter = true;
+    try { perform(S, u, a.id, targets, true); } finally { S.inCounter = false; }
+  }
+
+  // ------------------------------------------------------------------ the resolver
+  function elementMult(S, u, element) {
+    if (!element) return 1;
+    var aff = u.affinity && u.affinity[element] ? AFF_MULT[u.affinity[element]] : 1;
+    var w = S.db.weather[element];
+    return (aff === undefined ? 1 : aff) * (typeof w === 'number' ? w : 1);
+  }
+  function resolveOne(S, actor, u, a) {
+    var md = actor.mods[a.id] || {}, role = ABL_ROLE[a.kind] || null, phys = !!PHYS_KINDS[a.kind];
+    var element = a.id === '_attack' ? actor.attackElement : a.element;
+    if (u.ko) {
+      if (a.revive && a.kind === 'heal') {
+        u.ko = false; u.hp = 1;
+        emit(S, 'revive', { actor: actor.uid, target: u.uid, abl: a.id });
+        healUnit(S, actor, u, evalF(S, a.fx || roleFx(S, 'heal'), scopeOf(actor), scopeOf(u), a.power, null, a.power), a);
+      }
+      return;
+    }
+    if (phys) {
+      var hit = clampN(0.9 + (num(actor.stats.luck) - num(u.stats.luck)) / 256, 0.5, 0.99);
+      if (rnd(S) >= hit) { emit(S, 'miss', { actor: actor.uid, target: u.uid, abl: a.id }); return; }
+    }
+    if (role) {
+      var fid = a.fx || roleFx(S, role);
+      var base = evalF(S, fid, scopeOf(actor), scopeOf(u), a.power, null, a.power);
+      var variance = roleFx(S, 'var') ? evalF(S, roleFx(S, 'var'), scopeOf(actor), scopeOf(u), a.power, { roll: rnd(S) }, 1) : 1;
+      var crit = false;
+      if (phys && a.kind !== 'limit') crit = rnd(S) < clampN(0.03 + num(actor.stats.luck) / 512, 0, 0.5);
+      var v = base * variance * (crit ? 2 : 1);
+      if (phys && actor.row === 'back') v *= 0.5;
+      if (phys && u.row === 'back') v *= 0.5;
+      if (a.kind === 'heal') {
+        if (u.tax && S.db.inverts.indexOf(u.tax) >= 0) dealDamage(S, actor, u, v, element || null, false, a);
+        else healUnit(S, actor, u, v, a);
+      } else {
+        var mult = elementMult(S, u, element);
+        if (mult < 0) healUnit(S, actor, u, v * -mult, a);
+        else {
+          var dealt = dealDamage(S, actor, u, v * mult, element, crit, a);
+          if (md.hpAbsorb && !actor.ko) { actor.hp = Math.min(actor.maxHp, actor.hp + dealt); emit(S, 'heal', { actor: actor.uid, target: actor.uid, value: dealt, abl: a.id }); }
+          if (md.mpAbsorb && !actor.ko) actor.mp = Math.min(actor.maxMp, actor.mp + Math.floor(dealt / 10));
+        }
+      }
+    }
+    if (u.ko) return;
+    var effects = a.statusEffects.slice();
+    if (a.id === '_attack') effects = effects.concat(actor.addedEffects || []);
+    effects.forEach(function (s) { if (!u.ko && rnd(S) < num(s.chance, 1)) applyStatus(S, actor, u, s.sta); else if (a.kind === 'status' && !u.ko) emit(S, 'miss', { actor: actor.uid, target: u.uid, abl: a.id, value: s.sta }); });
+  }
+  function perform(S, actor, ablId, targetUids, isCounter) {
+    var a = ablOf(S, ablId);
+    if (!a || actor.ko) return;
+    var mp = num(a.cost && a.cost.mp);
+    if (actor.mp < mp) { emit(S, 'miss', { actor: actor.uid, abl: a.id, value: 'mp', name: 'Not enough MP' }); return; }
+    actor.mp -= mp;
+    if (actor.side === 'party') S.res.mpSpent += mp;
+    var list = targetUids.map(function (id) { return unit(S, id); }).filter(Boolean);
+    // single target that fell: retarget to a living unit on the same side
+    if (list.length === 1 && list[0].ko && !a.revive) {
+      var alive = sideOf(S, list[0].side, true);
+      list = alive.length ? [alive[Math.floor(rnd(S) * alive.length)]] : [];
+    }
+    emit(S, 'action', { actor: actor.uid, abl: a.id, name: a.name, element: a.id === '_attack' ? actor.attackElement : a.element, targets: list.map(function (x) { return x.uid; }), value: isCounter ? 'counter' : null });
+    list.forEach(function (u) { resolveOne(S, actor, u, a); });
+    if (a.kind === 'limit' && actor.limit && !isCounter) {
+      actor.limit.gauge = 0; actor.limit.uses++; actor.limit.usesAtLevel++;
+      unlockLimits(S, actor);
+    }
+    checkEnd(S);
+  }
+
+  // ------------------------------------------------------------------ gambits and the party policy
+  function candidates(S, u, sel) {
+    if (sel === 'self') return [u];
+    if (sel === 'attacker') {
+      var at = S.lastAttacker[u.uid] && unit(S, S.lastAttacker[u.uid]);
+      return at && !at.ko ? [at] : sideOf(S, other(u.side), true);
+    }
+    if (/Ally$|Allies$/.test(sel || '')) return sideOf(S, u.side, true);
+    return sideOf(S, other(u.side), true);
+  }
+  function pickFrom(S, sel, pool) {
+    if (!pool.length) return [];
+    if (sel === 'allFoes' || sel === 'allAllies') return pool.slice();
+    if (sel === 'lowestHpFoe' || sel === 'lowestHpAlly') return [pool.slice().sort(function (a, b) { return a.hp - b.hp || (a.uid < b.uid ? -1 : 1); })[0]];
+    if (sel === 'highestHpFoe') return [pool.slice().sort(function (a, b) { return b.hp - a.hp || (a.uid < b.uid ? -1 : 1); })[0]];
+    if (sel === 'self' || sel === 'attacker') return [pool[0]];
+    return [pool[Math.floor(rnd(S) * pool.length)]];
+  }
+  function expand(S, u, a, targets) {
+    if (!targets.length) return targets;
+    if (a.targeting.scope === 'all' || (u.mods[a.id] && u.mods[a.id].all)) return sideOf(S, targets[0].side, true);
+    if (a.targeting.scope === 'row') { var r = targets[0].row, s = targets[0].side; return sideOf(S, s, true).filter(function (x) { return x.row === r; }); }
+    if (a.targeting.scope === 'random') { var pool = sideOf(S, targets[0].side, true); return [pool[Math.floor(rnd(S) * pool.length)]]; }
+    return targets;
+  }
+  function chooseByRules(S, u, g) {
+    var rules = g && g.rules ? g.rules : [], i, x, a, c, p, pool, ok, sel, t;
+    for (i = 0; i < rules.length; i++) {
+      x = rules[i]; a = ablOf(S, x.action.abl);
+      if (!affordable(u, a)) continue;
+      c = x.condition; p = parseFloat(c.param); sel = x.target.selector;
+      pool = candidates(S, u, sel);
+      ok = true;
+      switch (c.kind) {
+        case 'always': break;
+        case 'selfHpBelow': ok = frac(u) < p; break;
+        case 'selfHpAbove': ok = frac(u) > p; break;
+        case 'allyHpBelow':
+          ok = sideOf(S, u.side, true).some(function (y) { return frac(y) < p; });
+          if (/Ally$|Allies$/.test(sel)) pool = pool.filter(function (y) { return frac(y) < p; });
+          break;
+        case 'targetHpBelow': pool = pool.filter(function (y) { return frac(y) < p; }); break;
+        case 'targetHasStatus': pool = pool.filter(function (y) { return hasSta(y, String(c.param).trim()); }); break;
+        case 'targetLacksStatus': pool = pool.filter(function (y) { return !hasSta(y, String(c.param).trim()); }); break;
+        case 'turnEvery': ok = ((u.turns + 1) % Math.max(1, Math.round(num(p, 1)))) === 0; break;
+        case 'enemyCountBelow': ok = sideOf(S, other(u.side), true).length < p; break;
+        case 'allyCountBelow': ok = sideOf(S, u.side, true).length < p; break;
+        case 'chance': ok = rnd(S) < num(p, 0); break;
+        default: ok = false;
+      }
+      if (!ok || !pool.length) continue;
+      t = expand(S, u, a, pickFrom(S, sel, pool));
+      if (t.length) return { abl: a.id, targets: t.map(function (y) { return y.uid; }) };
+    }
+    return null;
+  }
+  function basicAttack(S, u) {
+    var pool = sideOf(S, other(u.side), true);
+    return pool.length ? { abl: '_attack', targets: [pool[Math.floor(rnd(S) * pool.length)].uid] } : null;
+  }
+  function estimate(S, u, a, t) {
+    var role = ABL_ROLE[a.kind];
+    if (!role || a.kind === 'heal') return 0;
+    var v = num(evalF(S, a.fx || roleFx(S, role), scopeOf(u), scopeOf(t), a.power, null, a.power));
+    var m = elementMult(S, t, a.id === '_attack' ? u.attackElement : a.element);
+    var n = (a.targeting.scope === 'all' || (u.mods[a.id] && u.mods[a.id].all)) ? sideOf(S, t.side, true).length : 1;
+    return v * Math.max(0, m) * n;
+  }
+  // Default party policy: heal below 35 percent, then a ready Limit, otherwise the strongest affordable attack.
+  function defaultPolicy(S, u) {
+    var aw = S.awaiting, allies = sideOf(S, 'party', true), foes = sideOf(S, 'foe', true), heals = [], hurt, best = null, bestV = -1, target;
+    if (!foes.length) return null;
+    aw.commands.forEach(function (c) { c.abls.forEach(function (x) { var a = ablOf(S, x.id); if (x.ok && a && a.kind === 'heal' && a.targeting.side !== 'foe') heals.push(a); }); });
+    hurt = allies.filter(function (y) { return frac(y) < 0.35; }).sort(function (a, b) { return frac(a) - frac(b); });
+    if (hurt.length && heals.length) {
+      heals.sort(function (a, b) { return b.power - a.power; });
+      return { type: 'command', actor: u.uid, cmd: 'heal', abl: heals[0].id, target: hurt[0].uid };
+    }
+    target = foes.slice().sort(function (a, b) { return a.hp - b.hp || (a.uid < b.uid ? -1 : 1); })[0];
+    aw.commands.forEach(function (c) {
+      if (c.key === 'flee') return;
+      c.abls.forEach(function (x) {
+        var a = ablOf(S, x.id), v;
+        if (!x.ok || !a || a.kind === 'heal' || a.kind === 'status' || a.targeting.side === 'ally' || a.targeting.side === 'self') return;
+        v = estimate(S, u, a, target) * (c.key === 'limit' ? 1.5 : 1);
+        if (v > bestV) { bestV = v; best = { type: 'command', actor: u.uid, cmd: c.key, abl: a.id, target: target.uid }; }
+      });
+    });
+    return best || { type: 'command', actor: u.uid, cmd: 'attack', abl: '_attack', target: target.uid };
+  }
+  function policyInput(S, policy) {
+    var u = unit(S, S.awaiting.actor), ch;
+    if (isObj(policy) && Array.isArray(policy.rules) && policy.rules.length) {
+      if (!policy._compiled) {
+        var g = { rules: [], counters: [] };
+        policy.rules.forEach(function (x) { if (isObj(x) && x.action && ablOf(S, x.action.abl)) g.rules.push({ condition: isObj(x.condition) ? { kind: x.condition.kind || 'always', param: String(x.condition.param == null ? '' : x.condition.param) } : { kind: 'always', param: '' }, target: { selector: (x.target && x.target.selector) || 'lowestHpFoe' }, action: { abl: x.action.abl } }); });
+        policy._compiled = g;
+      }
+      ch = chooseByRules(S, u, policy._compiled);
+      if (ch) return { type: 'command', actor: u.uid, cmd: 'policy', abl: ch.abl, target: ch.targets[0], targets: ch.targets };
+    }
+    return defaultPolicy(S, u);
+  }
+
+  // ------------------------------------------------------------------ turns
+  function commandsFor(S, u) {
+    var out = [], lim = u.limit && u.limit.gauge >= 1 ? currentLimit(u) : null;
+    function row(id) { var a = ablOf(S, id); return { id: id, name: a.name, mp: num(a.cost.mp), ok: affordable(u, a), side: a.targeting.side, scope: (u.mods[id] && u.mods[id].all) ? 'all' : a.targeting.scope, element: id === '_attack' ? u.attackElement : a.element, kind: a.kind }; }
+    if (lim) out.push({ key: 'limit', label: 'Limit', abls: [row(lim.abl)] });
+    else out.push({ key: 'attack', label: 'Attack', abls: [row('_attack')] });
+    u.commands.forEach(function (c) { out.push({ key: c.key, label: c.label, abls: c.abls.filter(function (id) { return ablOf(S, id); }).map(row) }); });
+    if (!(S.db.troop && S.db.troop.noEscape)) out.push({ key: 'flee', label: 'Flee', abls: [] });
+    return out;
+  }
+  function nextAwaiting(S) {
+    if (S.awaiting || S.result) return;
+    while (S.readyQueue.length) {
+      var u = unit(S, S.readyQueue[0]);
+      if (u && !u.ko && u.ready) {
+        S.awaiting = { actor: u.uid, commands: commandsFor(S, u), targets: { foe: sideOf(S, 'foe', true).map(function (x) { return x.uid; }), party: sideOf(S, 'party', true).map(function (x) { return x.uid; }) } };
+        return;
+      }
+      S.readyQueue.shift();
+    }
+  }
+  function refreshAwaiting(S) {
+    if (!S.awaiting) return;
+    var u = unit(S, S.awaiting.actor);
+    if (!u || u.ko) { S.awaiting = null; S.readyQueue.shift(); nextAwaiting(S); return; }
+    S.awaiting.commands = commandsFor(S, u);
+    S.awaiting.targets = { foe: sideOf(S, 'foe', true).map(function (x) { return x.uid; }), party: sideOf(S, 'party', true).map(function (x) { return x.uid; }) };
+  }
+  // A unit's turn begins: statuses tick, then party members wait for input and foes act.
+  function beginTurn(S, u) {
+    statusTurn(S, u);
+    if (u.ko || S.result) return;
+    u.ready = true;
+    emit(S, 'ready', { actor: u.uid });
+    if (u.side === 'party') { S.readyQueue.push(u.uid); nextAwaiting(S); return; }
+    var ch = (u.gambit && chooseByRules(S, u, S.db.gmb[u.gambit])) || basicAttack(S, u);
+    u.ready = false;
+    if (!ch) return;
+    commit(S, u, ch.abl, ch.targets);
+  }
+  function commit(S, u, ablId, targets) {
+    var a = ablOf(S, ablId);
+    u.turns++; S.turns++;
+    emit(S, 'command', { actor: u.uid, abl: ablId, name: a ? a.name : '', targets: targets });
+    if (S.sched === 'atb' && a && a.chargeTicks > 0) { u.charging = { abl: ablId, targets: targets, left: a.chargeTicks }; u.gauge = 0; return; }
+    u.gauge = 0;
+    if (S.sched === 'conditional' && a && a.chargeTicks > 0) u.nextAt += a.chargeTicks;
+    perform(S, u, ablId, targets, false);
+  }
+  function checkEnd(S) {
+    if (S.result) return;
+    if (!sideOf(S, 'foe', true).length) S.result = finish(S, 'win');
+    else if (!sideOf(S, 'party', true).length) S.result = finish(S, 'lose');
+  }
+  function finish(S, outcome, quiet) {
+    var party = partyOf(S), hpEnd = 0, rewards = { gil: 0, exp: 0, ap: 0 };
+    party.forEach(function (u) { hpEnd += u.hp; });
+    if (outcome === 'win') foesOf(S).forEach(function (u) { rewards.gil += u.gil; rewards.exp += u.exp; rewards.ap += u.ap; });
+    S.awaiting = null; S.readyQueue = [];
+    var r = {
+      outcome: outcome, ticks: S.t, turns: S.turns, preemptive: S.preemptive, rngCalls: S.rng.calls, rewards: rewards,
+      partyEnd: party.map(function (u) { return { uid: u.uid, chr: u.ref, name: u.name, hp: u.hp, maxHp: u.maxHp, mp: u.mp, maxMp: u.maxMp, ko: u.ko, limitLevel: u.limit ? u.limit.level : 1, limitUses: u.limit ? u.limit.uses : 0, kills: u.kills }; }),
+      resourcesUsed: {
+        hpLost: Math.max(0, S.res.hpStart - hpEnd), mpSpent: S.res.mpSpent, items: S.res.itemsUsed,
+        hpPct: S.res.hpMax ? Math.round(Math.max(0, S.res.hpStart - hpEnd) / S.res.hpMax * 1000) / 10 : 0,
+        mpPct: S.res.mpMax ? Math.round(S.res.mpSpent / S.res.mpMax * 1000) / 10 : 0
+      },
+      damageLog: S.damageLog, warnings: S.db.warnings.slice(0, 20)
+    };
+    if (!quiet) emit(S, 'end', { value: outcome });
+    return r;
+  }
+
+  // One unit of time for each scheduler.
+  var SCHED = {
+    atb: function (S) {
+      S.units.forEach(function (u) {
+        if (u.ko || S.result) return;
+        var b = blockedBy(S, u);
+        if (b) {
+          if (b === 'empty') u.gauge = 0;
+          if (++u.frozenTicks >= delayOf(S, u)) { u.frozenTicks = 0; statusTurn(S, u); }
+          return;
+        }
+        if (u.charging) {
+          if (--u.charging.left <= 0) { var c = u.charging; u.charging = null; perform(S, u, c.abl, c.targets, false); }
+          return;
+        }
+        if (u.ready) return;
+        u.gauge = Math.min(GAUGE_MAX, u.gauge + u.fill);
+        if (u.gauge >= GAUGE_MAX) beginTurn(S, u);
+      });
+      S.t++;
+    },
+    rounds: function (S) {
+      if (!S.round || S.round.i >= S.round.q.length) {
+        var keyed = sideOf(S, 'party', true).concat(sideOf(S, 'foe', true)).map(function (u) { return { uid: u.uid, spd: num(u.stats.spd), k: rnd(S) }; });
+        keyed.sort(function (a, b) { return b.spd - a.spd || b.k - a.k; });
+        S.round = { n: S.round ? S.round.n + 1 : 1, q: keyed.map(function (x) { return x.uid; }), i: 0 };
+      }
+      var u = unit(S, S.round.q[S.round.i++]);
+      S.t++;
+      if (!u || u.ko) return;
+      if (blockedBy(S, u)) { statusTurn(S, u); return; }
+      beginTurn(S, u);
+    },
+    conditional: function (S) {
+      var live = S.units.filter(function (u) { return !u.ko; }), u = null;
+      live.forEach(function (x) { if (!u || x.nextAt < u.nextAt) u = x; });
+      if (!u) return;
+      S.t = Math.max(S.t + 1, u.nextAt);
+      u.nextAt = S.t + delayOf(S, u);
+      if (blockedBy(S, u)) { statusTurn(S, u); return; }
+      beginTurn(S, u);
+    }
+  };
+  function step(S, maxTicks) {
+    var had = !!S.awaiting, n = 0, t0 = S.t;
+    while (!S.result && n < maxTicks) {
+      if (S.awaiting && (S.waitMode || S.sched !== 'atb')) break;
+      if (S.awaiting && !had) break;
+      SCHED[S.sched](S);
+      n++;
+      if (!S.result && S.t >= S.tickCap) S.result = finish(S, 'timeout');
+    }
+    if (S.t > t0) emit(S, 'tick', { value: S.t - t0 });
+    return n;
+  }
+  function apply(S, input) {
+    var aw = S.awaiting, u, a, tg, list, r;
+    if (!aw || !input || input.actor !== aw.actor) { emit(S, 'miss', { actor: input && input.actor, value: 'rejected', name: 'No unit is waiting for that input.' }); return false; }
+    u = unit(S, aw.actor);
+    if (input.type === 'flee') {
+      if (S.db.troop && S.db.troop.noEscape) { emit(S, 'miss', { actor: u.uid, value: 'flee', name: 'Cannot escape' }); return false; }
+      var ps = sideOf(S, 'party', true), fs = sideOf(S, 'foe', true);
+      var avg = function (l) { return l.reduce(function (s, x) { return s + num(x.stats.spd); }, 0) / Math.max(1, l.length); };
+      var chance = clampN(0.5 + (avg(ps) - avg(fs)) / 100, 0.1, 0.9);
+      u.ready = false; u.gauge = 0; S.readyQueue.shift(); S.awaiting = null; u.turns++; S.turns++;
+      emit(S, 'command', { actor: u.uid, value: 'flee', name: 'Flee' });
+      if (rnd(S) < chance) { S.result = finish(S, 'flee'); return true; }
+      emit(S, 'miss', { actor: u.uid, value: 'flee', name: 'Could not escape' });
+      nextAwaiting(S);
+      return true;
+    }
+    a = ablOf(S, input.abl);
+    var allowed = false;
+    aw.commands.forEach(function (c) { c.abls.forEach(function (x) { if (x.id === input.abl && x.ok) allowed = true; }); });
+    if (!a || !allowed) { emit(S, 'miss', { actor: u.uid, value: 'rejected', name: 'That ability is not available.' }); return false; }
+    if (Array.isArray(input.targets) && input.targets.length) list = input.targets.map(function (id) { return unit(S, id); }).filter(function (x) { return x && !x.ko; });
+    else {
+      tg = input.target ? unit(S, input.target) : null;
+      if (!tg || tg.ko) {
+        var side = a.targeting.side === 'foe' ? 'foe' : 'party';
+        if (a.targeting.side === 'self') tg = u;
+        else { var pool = sideOf(S, side, true); tg = pool[0] || null; }
+      }
+      list = tg ? expand(S, u, a, [tg]) : [];
+    }
+    if (a.targeting.side === 'self') list = [u];
+    if (!list.length) { emit(S, 'miss', { actor: u.uid, value: 'rejected', name: 'No target.' }); return false; }
+    u.ready = false; S.readyQueue.shift(); S.awaiting = null;
+    commit(S, u, a.id, list.map(function (x) { return x.uid; }));
+    nextAwaiting(S);
+    refreshAwaiting(S);
+    r = true;
+    return r;
+  }
+
+  function skipAwaiting(S) {
+    var u = S.awaiting && unit(S, S.awaiting.actor);
+    if (u) { u.ready = false; u.gauge = 0; u.turns++; }
+    S.readyQueue.shift(); S.awaiting = null;
+    nextAwaiting(S);
+  }
+
+  // ------------------------------------------------------------------ public API
+  function out(S) {
+    var e = EV; EV = null;
+    return { state: S, events: e, awaiting: S.awaiting ? clone(S.awaiting) : null };
+  }
+  // advance never mutates its input. input: null (run to the next decision), {type:'step', ticks},
+  // {type:'command', actor, abl, target | targets}, or {type:'flee', actor}.
+  function advance(state, input) {
+    var S = clone(state);
+    EV = [];
+    if (S.result) return out(S);
+    if (input && (input.type === 'command' || input.type === 'flee')) apply(S, input);
+    else step(S, input && input.type === 'step' ? Math.max(0, Math.floor(num(input.ticks, 1))) : S.tickCap);
+    refreshAwaiting(S);
+    return out(S);
+  }
+  // Drives advance with gambits for foes and the party policy until the battle ends.
+  function run(data, seed, policy, opts) {
+    opts = isObj(opts) ? opts : {};
+    var S = init(data, seed, opts), all = [], keep = opts.events !== false, guard = 0, pol = isObj(policy) ? clone(policy) : null;
+    EV = [];
+    while (!S.result && guard++ < 200000) {
+      if (S.awaiting) { if (!apply(S, policyInput(S, pol))) skipAwaiting(S); }
+      else step(S, S.tickCap);
+      if (keep) { Array.prototype.push.apply(all, EV); }
+      EV = [];
+    }
+    if (!S.result) S.result = finish(S, 'timeout');
+    if (keep) Array.prototype.push.apply(all, EV || []);
+    EV = null;
+    return { events: keep ? all : [], result: S.result };
+  }
+  // Rebuilds a battle from recorded inputs [{t, input}]. Inputs apply at the exact tick they were given.
+  function replay(data, seed, opts, inputs) {
+    var S = init(data, seed, opts), all = [], k, rec, guard, n;
+    EV = [];
+    for (k = 0; k < arr(inputs).length && !S.result; k++) {
+      rec = inputs[k]; guard = 0;
+      while (!S.result && S.t < num(rec.t) && guard++ < 1000000) {
+        n = step(S, num(rec.t) - S.t);
+        if (!n) break;
+      }
+      if (S.result) break;
+      apply(S, rec.input);
+      refreshAwaiting(S);
+    }
+    Array.prototype.push.apply(all, EV); EV = null;
+    return { state: S, events: all, awaiting: S.awaiting ? clone(S.awaiting) : null };
+  }
+  // The input the party policy would give for the unit awaiting a command (default policy when none is supplied).
+  function suggest(state, policy) {
+    if (!state || !state.awaiting || state.result) return null;
+    var S = clone(state), e = EV, r;
+    EV = null;
+    r = policyInput(S, isObj(policy) ? clone(policy) : null);
+    EV = e;
+    return r;
+  }
+  // Turn order forecast for the conditional scheduler (and an estimate for the others).
+  function forecast(state, n) {
+    var sim = state.units.filter(function (u) { return !u.ko; }).map(function (u) { return { uid: u.uid, at: state.sched === 'conditional' ? u.nextAt : Math.ceil((GAUGE_MAX - u.gauge) / u.fill), d: Math.ceil(GAUGE_MAX / u.fill) }; });
+    var list = [], i, best;
+    for (i = 0; i < (n || 6) && sim.length; i++) {
+      best = sim[0];
+      sim.forEach(function (x) { if (x.at < best.at) best = x; });
+      list.push(best.uid); best.at += best.d;
+    }
+    return list;
+  }
+
+  return {
+    version: VERSION, templates: TEMPLATES, evalExpr: expr, gaugeMax: GAUGE_MAX,
+    schedulers: Object.keys(SCHEDULERS), progressions: Object.keys(PROGRESSIONS),
+    init: init, advance: advance, run: run, replay: replay, forecast: forecast, suggest: suggest
+  };
 })();
 // === ENGINE:BATTLE END ===
 // === WS:ARENA BEGIN ===
 (function () {
   'use strict';
+  var U = Kit.util, el = function (t, c, h) { return U.el(t, c, h); }, esc = U.esc;
   var WSX = window.WS.arena = { id: 'arena' };
+  var SETUP_KEY = 'saga146:arena:setup';
+  var PARTY_MAX = 4;
+  var PARTY_TINTS = ['#e3b453', '#6fc7b6', '#e07a9a', '#8fa8ff', '#b7d56b', '#f09a5a', '#c89cf0', '#66b8e0'];
+
+  function cur() { return Kit.bundle.current(); }
   function count(b, p) { return b && b.rules && b.rules[p] ? Object.keys(b.rules[p]).length : 0; }
+  function recs(b, p) { var o = b && b.rules && b.rules[p] ? b.rules[p] : {}; return Object.keys(o).map(function (k) { return o[k]; }).filter(function (r) { return U.isObj(r) && r.id; }); }
+  function recOf(b, id) { var p = Kit.ids.prefixOf(id); return p && b.rules && b.rules[p] && b.rules[p][id] ? b.rules[p][id] : null; }
+  function num(v, d) { return typeof v === 'number' && isFinite(v) ? v : (d === undefined ? 0 : d); }
+  function rs(b) { return (b && b.charter && b.charter.ruleset) || {}; }
+  function chapters(b) { return window.WS.rules && WS.rules.content ? WS.rules.content.chaptersOf(b) : []; }
+  function epsFor(b, chId) { var l = recs(b, 'eps_'); for (var i = 0; i < l.length; i++) if (l[i].chapter === chId) return l[i]; return null; }
+  function resolution(b) { return window.WS.charter && WS.charter.resolution ? WS.charter.resolution(b) : { w: 256, h: 224 }; }
+  function randomSeed() { return Math.floor(Math.random() * 2147483646) + 1; }
+
   WSX.canEnter = function (b) {
     var r = window.WS.rules.canEnter(b);
     if (r !== true) return r;
     return count(b, 'trp_') ? true : 'Author a troop in Rules to open the Arena.';
   };
-  WSX.render = function (host) {
-    host.appendChild(Kit.ui.stub({ title: 'Arena', icon: 'arena', lead: 'Fight any authored troop with a seeded, replayable battle.', status: 'The Arena is being forged.' }));
+
+  // ------------------------------------------------------------------ party building (shared with the Simulator)
+  function bestGear(b, slot, weaponClass, tier) {
+    var best = null;
+    recs(b, 'eqp_').forEach(function (e) {
+      if (e.slot !== slot) return;
+      if (slot === 'weapon' && e.weaponClass && weaponClass && String(e.weaponClass).toLowerCase() !== String(weaponClass).toLowerCase()) return;
+      var t = num(e.tier, 1);
+      if (t > tier) return;
+      if (!best || t > num(best.tier, 1) || (t === num(best.tier, 1) && num(e.price) > num(best.price))) best = e;
+    });
+    return best;
+  }
+  // Places materia into the party gear: each support materia takes a free linked pair beside the next non support materia,
+  // then everything else fills free slots member by member.
+  function placeMateria(b, members, matIds) {
+    var slots = [];
+    members.forEach(function (m, mi) {
+      (m.equipment || []).forEach(function (eid) {
+        var e = recOf(b, eid), lay = e && U.isObj(e.slotLayout) ? e.slotLayout : null, n = lay ? Math.max(0, Math.min(8, num(lay.count))) : 0;
+        for (var i = 0; i < n; i++) slots.push({ mi: mi, eqp: eid, slot: i, links: (lay.links || []).filter(function (l) { return Array.isArray(l) && (l[0] === i || l[1] === i); }), used: false });
+      });
+    });
+    var mats = (matIds || []).map(function (id) { return recOf(b, id); }).filter(Boolean);
+    var supports = mats.filter(function (m) { return m.kind === 'support'; }), others = mats.filter(function (m) { return m.kind !== 'support'; });
+    function free(eqp, mi, s) { for (var i = 0; i < slots.length; i++) if (slots[i].mi === mi && slots[i].eqp === eqp && slots[i].slot === s && !slots[i].used) return slots[i]; return null; }
+    function put(sl, m) { sl.used = true; members[sl.mi].materia.push({ eqp: sl.eqp, slot: sl.slot, mat: m.id, ap: 0 }); }
+    supports.forEach(function (sm) {
+      var partner = others[0], done = false;
+      slots.forEach(function (sl) {
+        if (done || sl.used) return;
+        sl.links.forEach(function (l) {
+          if (done) return;
+          var o = l[0] === sl.slot ? l[1] : l[0], os = free(sl.eqp, sl.mi, o);
+          if (!os) return;
+          put(sl, sm); done = true;
+          if (partner) { put(os, partner); others.shift(); }
+        });
+      });
+      if (!done) others.push(sm);
+    });
+    var mi = 0;
+    others.forEach(function (m) {
+      var tries = 0, sl = null;
+      while (!sl && tries < members.length) {
+        for (var i = 0; i < slots.length; i++) if (!slots[i].used && slots[i].mi === (mi + tries) % members.length) { sl = slots[i]; break; }
+        tries++;
+      }
+      if (!sl) for (var j = 0; j < slots.length; j++) if (!slots[j].used) { sl = slots[j]; break; }
+      if (sl) { put(sl, m); mi = (sl.mi + 1) % Math.max(1, members.length); }
+    });
+    return members;
+  }
+  // cfg = {chars:[chr ids], source:'custom'|chp id, level, gearTier, materia:[mat ids], jobs:{chr: job}, classes:{chr: cls}, rows:{chr: row}}
+  WSX.buildParty = function (b, cfg) {
+    b = b || cur(); cfg = cfg || {};
+    var prog = rs(b).progression, eps = cfg.source && cfg.source !== 'custom' ? epsFor(b, cfg.source) : null;
+    var level = eps ? num(eps.targetLevel, 1) : num(cfg.level, 10);
+    var tier = eps ? num(eps.gearTier, 1) : num(cfg.gearTier, 1);
+    var chars = (cfg.chars || []).map(function (id) { return recOf(b, id); }).filter(Boolean).slice(0, PARTY_MAX);
+    var members = chars.map(function (c, i) {
+      var eq = ['weapon', 'armor', 'accessory'].map(function (s) { return bestGear(b, s, c.weaponClass, tier); }).filter(Boolean).map(function (e) { return e.id; });
+      var m = { chr: c.id, level: Math.max(1, Math.min(99, Math.round(level))), equipment: eq, materia: [], abilities: eps && Array.isArray(eps.abilities) ? eps.abilities.slice() : [], row: (cfg.rows && cfg.rows[c.id]) || 'front' };
+      if (prog === 'jobs') { var js = eps && Array.isArray(eps.jobSet) && eps.jobSet.length ? eps.jobSet : null; m.job = js ? js[i % js.length] : (cfg.jobs && cfg.jobs[c.id]) || null; m.jobLevel = m.level; }
+      if (prog === 'classes') { var cs = eps && Array.isArray(eps.classSet) && eps.classSet.length ? eps.classSet : null; m.cls = cs ? cs[i % cs.length] : (cfg.classes && cfg.classes[c.id]) || null; }
+      return m;
+    });
+    if (prog === 'materia') placeMateria(b, members, eps ? (eps.materiaSet || []) : (cfg.materia || []));
+    return members;
   };
-  Kit.mount('arena', { title: 'Arena', icon: 'arena', canEnter: WSX.canEnter, render: WSX.render });
+  // Expected Party State for a chapter: the first PARTY_MAX characters unless chars is given.
+  WSX.expectedParty = function (b, chapterId, chars) {
+    b = b || cur();
+    return WSX.buildParty(b, { source: chapterId, chars: chars && chars.length ? chars : recs(b, 'chr_').slice(0, PARTY_MAX).map(function (c) { return c.id; }) });
+  };
+  WSX.dataFor = function (b, troopId, party, weatherId) {
+    b = b || cur();
+    return { ruleset: rs(b), records: b.rules || {}, party: party, troopId: troopId, weatherId: weatherId || null };
+  };
+
+  // ------------------------------------------------------------------ battle codes
+  function b64enc(str) { return btoa(unescape(encodeURIComponent(str))); }
+  function b64dec(str) { return decodeURIComponent(escape(atob(String(str).replace(/\s+/g, '')))); }
+  WSX.encodeCode = function (o) { return b64enc(JSON.stringify(o)); };
+  WSX.decodeCode = function (code) {
+    var o = JSON.parse(b64dec(code));
+    if (!U.isObj(o) || !o.troopId || !Array.isArray(o.party) || typeof o.seed !== 'number' || !Array.isArray(o.inputs)) throw new Error('That is not a Saga Forge battle code.');
+    return o;
+  };
+
+  // ------------------------------------------------------------------ pixel font (3 by 5)
+  var GLYPHS = {
+    A: '25755', B: '65656', C: '34443', D: '65556', E: '74647', F: '74644', G: '34553', H: '55755', I: '72227', J: '11152',
+    K: '55655', L: '44447', M: '57755', N: '65555', O: '25552', P: '65644', Q: '25563', R: '65655', S: '34216', T: '72222',
+    U: '55557', V: '55552', W: '55775', X: '55255', Y: '55222', Z: '71247',
+    '0': '75557', '1': '26227', '2': '61247', '3': '61216', '4': '55711', '5': '74616', '6': '34757', '7': '71222', '8': '75757', '9': '75716',
+    ' ': '00000', '/': '11244', ':': '02020', '.': '00002', '-': '00700', '+': '02720', '!': '22202', '?': '61202', '%': '51245', "'": '22000', ',': '00024'
+  };
+  function textW(s, sc) { return String(s).length * 4 * (sc || 1) - (sc || 1); }
+  function drawText(g, s, x, y, color, sc, shadow) {
+    sc = sc || 1; s = String(s).toUpperCase();
+    if (shadow !== false) drawText(g, s, x + sc, y + sc, 'rgba(0,0,0,.85)', sc, false);
+    g.fillStyle = color;
+    for (var i = 0; i < s.length; i++) {
+      var gl = GLYPHS[s.charAt(i)] || GLYPHS['?'];
+      for (var r = 0; r < 5; r++) {
+        var bits = +gl.charAt(r);
+        if (bits & 4) g.fillRect(x + i * 4 * sc, y + r * sc, sc, sc);
+        if (bits & 2) g.fillRect(x + i * 4 * sc + sc, y + r * sc, sc, sc);
+        if (bits & 1) g.fillRect(x + i * 4 * sc + 2 * sc, y + r * sc, sc, sc);
+      }
+    }
+  }
+  function shortName(n, max) { n = String(n || '').toUpperCase().replace(/[^A-Z0-9 ]/g, ''); return n.length > max ? n.slice(0, max) : n; }
+
+  // ------------------------------------------------------------------ procedural sprites (arcTo and rect only)
+  function rr(g, x, y, w, h, r) {
+    r = Math.max(0, Math.min(r, w / 2, h / 2));
+    g.beginPath();
+    g.moveTo(x + r, y);
+    g.arcTo(x + w, y, x + w, y + h, r);
+    g.arcTo(x + w, y + h, x, y + h, r);
+    g.arcTo(x, y + h, x, y, r);
+    g.arcTo(x, y, x + w, y, r);
+    g.closePath();
+    g.fill();
+  }
+  function hashStr(s) { var h = 2166136261; s = String(s || ''); for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+  function mulberry(a) { return function () { a = (a + 0x6D2B79F5) | 0; var t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  function hexRgb(h) { var m = /^#?([0-9a-f]{6})$/i.exec(String(h || '')); if (!m) return null; var n = parseInt(m[1], 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+  function rgbHex(c) { return '#' + c.map(function (v) { v = Math.max(0, Math.min(255, Math.round(v))); return (v < 16 ? '0' : '') + v.toString(16); }).join(''); }
+  function hueShift(hex, deg) {
+    if (window.WS.rules && WS.rules.content && WS.rules.content.shiftHex) { try { return WS.rules.content.shiftHex(hex, deg); } catch (e) {} }
+    var c = hexRgb(hex); if (!c) return hex;
+    var a = deg * Math.PI / 180, cs = Math.cos(a), sn = Math.sin(a), r = c[0], g = c[1], bb = c[2];
+    return rgbHex([
+      r * (.213 + cs * .787 - sn * .213) + g * (.715 - cs * .715 - sn * .715) + bb * (.072 - cs * .072 + sn * .928),
+      r * (.213 - cs * .213 + sn * .143) + g * (.715 + cs * .285 + sn * .140) + bb * (.072 - cs * .072 - sn * .283),
+      r * (.213 - cs * .213 - sn * .787) + g * (.715 - cs * .715 + sn * .715) + bb * (.072 + cs * .928 + sn * .072)
+    ]);
+  }
+  function shade(hex, f) { var c = hexRgb(hex); return c ? rgbHex(c.map(function (v) { return f < 0 ? v * (1 + f) : v + (255 - v) * f; })) : hex; }
+  var spriteCache = {};
+  function makeCanvas(w, h) { var c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
+  // Symmetric blob from seeded shapes. Every off center shape is drawn twice, mirrored about the vertical axis.
+  function foeSprite(famId, tier, palette, size) {
+    var base = (palette && palette.base) || '#7a6f9e', acc = (palette && palette.accent) || '#e3b453';
+    if (tier > 1) acc = hueShift(acc, (tier - 1) * 40);
+    var key = famId + '|' + tier + '|' + base + '|' + acc + '|' + size;
+    if (spriteCache[key]) return spriteCache[key];
+    var R = mulberry(hashStr(famId || 'none')), S = size, c = makeCanvas(S, S), g = c.getContext('2d');
+    function sym(fn) { fn(false); fn(true); }
+    function mx(x, w, m) { return m ? S - x - w : x; }
+    g.fillStyle = base;
+    var bw = Math.round(S * (0.42 + R() * 0.3)), bh = Math.round(S * (0.34 + R() * 0.28)), by = S - bh - Math.round(S * 0.08);
+    rr(g, (S - bw) / 2, by, bw, bh, Math.round(bh * (0.2 + R() * 0.3)));
+    var hasHead = R() < 0.7, hw = Math.round(bw * (0.45 + R() * 0.3)), hh = Math.round(S * (0.18 + R() * 0.12)), hy = by - hh + Math.round(hh * 0.3);
+    if (hasHead) rr(g, (S - hw) / 2, hy, hw, hh, Math.round(hh * 0.4));
+    var topY = hasHead ? hy : by;
+    var limbs = 1 + Math.floor(R() * 3);
+    for (var i = 0; i < limbs; i++) {
+      var lw = Math.max(2, Math.round(S * (0.08 + R() * 0.12))), lh = Math.max(3, Math.round(S * (0.12 + R() * 0.25)));
+      var lx = Math.round((S - bw) / 2 - lw * (0.3 + R() * 0.6)), ly = Math.round(by + R() * (bh - lh * 0.6));
+      var round = R() < 0.5;
+      sym(function (m) { if (round) rr(g, mx(lx, lw, m), ly, lw, lh, lw / 2); else g.fillRect(mx(lx, lw, m), ly, lw, lh); });
+    }
+    if (R() < 0.6) {
+      var ew = Math.max(2, Math.round(S * (0.05 + R() * 0.07))), eh = Math.max(3, Math.round(S * (0.1 + R() * 0.14))), ex = Math.round(S / 2 - hw / 2 + R() * hw * 0.3);
+      sym(function (m) { rr(g, mx(ex, ew, m), topY - eh + 2, ew, eh, ew / 2); });
+    }
+    if (R() < 0.35) g.fillRect(Math.round(S / 2 - 1), Math.max(0, topY - Math.round(S * 0.12)), 2, Math.round(S * 0.14));
+    // shading on the lower half
+    g.globalCompositeOperation = 'source-atop';
+    g.fillStyle = 'rgba(0,0,0,.28)'; g.fillRect(0, Math.round(by + bh * 0.55), S, S);
+    g.fillStyle = 'rgba(255,255,255,.12)'; g.fillRect(0, 0, S, Math.round(topY + 3));
+    // accent: belly and eyes
+    g.fillStyle = acc;
+    if (R() < 0.6) { var sw = Math.round(bw * 0.4), sh = Math.max(2, Math.round(bh * 0.3)); rr(g, (S - sw) / 2, by + Math.round(bh * 0.35), sw, sh, sh / 2); }
+    var eyeY = hasHead ? hy + Math.round(hh * 0.4) : by + Math.round(bh * 0.2), eyeX = Math.round(S / 2 - Math.max(3, (hasHead ? hw : bw) * (0.14 + R() * 0.12)));
+    var es = Math.max(1, Math.round(S / 16));
+    sym(function (m) { g.fillRect(mx(eyeX, es + 1, m), eyeY, es + 1, es + 1); });
+    g.globalCompositeOperation = 'source-over';
+    // outline
+    var o = makeCanvas(S + 2, S + 2), og = o.getContext('2d');
+    var mask = makeCanvas(S, S), mg = mask.getContext('2d');
+    mg.drawImage(c, 0, 0); mg.globalCompositeOperation = 'source-in'; mg.fillStyle = '#07080d'; mg.fillRect(0, 0, S, S);
+    [[0, 1], [2, 1], [1, 0], [1, 2]].forEach(function (d) { og.drawImage(mask, d[0], d[1]); });
+    og.drawImage(c, 1, 1);
+    spriteCache[key] = o;
+    return o;
+  }
+  function weaponGlyph(g, cls, x, y, color) {
+    cls = String(cls || '').toLowerCase();
+    g.fillStyle = color;
+    if (/staff|rod|wand|cane/.test(cls)) { g.fillRect(x, y - 10, 1, 16); g.fillStyle = '#9ad1ff'; rr(g, x - 1, y - 13, 3, 3, 1); }
+    else if (/axe|hammer|mace/.test(cls)) { g.fillRect(x, y - 8, 1, 13); g.fillRect(x - 3, y - 9, 4, 4); }
+    else if (/bow|gun|rifle/.test(cls)) { g.fillRect(x - 2, y - 8, 1, 12); g.fillRect(x - 1, y - 9, 1, 1); g.fillRect(x - 1, y + 4, 1, 1); g.fillStyle = 'rgba(255,255,255,.5)'; g.fillRect(x, y - 8, 1, 12); }
+    else if (/spear|lance|pole/.test(cls)) { g.fillRect(x, y - 12, 1, 18); g.fillStyle = '#e8e8e8'; g.fillRect(x - 1, y - 14, 3, 3); }
+    else if (/claw|fist|glove/.test(cls)) { g.fillStyle = '#e8e8e8'; g.fillRect(x - 3, y, 3, 1); g.fillRect(x - 3, y + 2, 3, 1); }
+    else { g.fillStyle = '#e8e8e8'; g.fillRect(x, y - 11, 1, 12); g.fillStyle = color; g.fillRect(x - 2, y, 5, 1); g.fillRect(x, y + 1, 1, 3); }
+  }
+
+  // ------------------------------------------------------------------ view state
+  var V = null; // the running battle view
+  function stopLoop() { if (V && V.raf) { cancelAnimationFrame(V.raf); V.raf = 0; } }
+  function loadSetup() {
+    var s = Kit.store.get(SETUP_KEY);
+    return U.isObj(s) ? s : {};
+  }
+  function saveSetup(s) { Kit.store.set(SETUP_KEY, s); }
+  function defaultSetup(b) {
+    var s = loadSetup(), troops = recs(b, 'trp_'), chars = recs(b, 'chr_');
+    if (!s.troopId || !recOf(b, s.troopId)) s.troopId = troops[0] ? troops[0].id : null;
+    s.chars = (Array.isArray(s.chars) ? s.chars : []).filter(function (id) { return recOf(b, id); });
+    if (!s.chars.length) s.chars = chars.slice(0, Math.min(3, PARTY_MAX)).map(function (c) { return c.id; });
+    if (!s.source || (s.source !== 'custom' && !epsFor(b, s.source))) {
+      var tr = s.troopId && recOf(b, s.troopId), ch = tr && tr.chapter && epsFor(b, tr.chapter) ? tr.chapter : null;
+      s.source = ch || 'custom';
+    }
+    if (typeof s.level !== 'number') s.level = 10;
+    if (typeof s.gearTier !== 'number') s.gearTier = 1;
+    if (!Array.isArray(s.materia)) s.materia = [];
+    s.materia = s.materia.filter(function (id) { return recOf(b, id); });
+    if (!U.isObj(s.jobs)) s.jobs = {};
+    if (!U.isObj(s.classes)) s.classes = {};
+    if (!U.isObj(s.rows)) s.rows = {};
+    if (s.weatherId && !recOf(b, s.weatherId)) s.weatherId = null;
+    if (typeof s.seed !== 'number' || !isFinite(s.seed)) s.seed = randomSeed();
+    var bt = rs(b).battle || {};
+    if (typeof s.waitMode !== 'boolean') s.waitMode = bt.waitMode !== false;
+    if ([1, 2, 4].indexOf(s.speed) < 0) s.speed = 1;
+    return s;
+  }
+
+  // ------------------------------------------------------------------ render
+  WSX.render = function (host) {
+    stopLoop();
+    var b = cur(), setup = defaultSetup(b);
+    var wrap = el('div', 'ar-wrap');
+    host.appendChild(wrap);
+    var left = el('section', 'panel ar-setup');
+    var right = el('section', 'panel ar-stagepanel');
+    wrap.appendChild(left); wrap.appendChild(right);
+    V = { host: host, setup: setup, b: b, right: right };
+    paintSetup(left, b, setup);
+    paintStage(right, b);
+    if (WSX._pending) { var p = WSX._pending; WSX._pending = null; if (p.code) playCode(p.code); else if (p.start) startBattle(); }
+  };
+
+  function field(label, node, help) {
+    var f = el('div', 'field');
+    var l = el('label', 'field-label'); l.textContent = label;
+    if (node.id) l.htmlFor = node.id;
+    f.appendChild(l);
+    var body = el('div', 'field-body'); body.appendChild(node); f.appendChild(body);
+    if (help) { var h = el('div', 'field-help'); h.textContent = help; f.appendChild(h); }
+    return f;
+  }
+  function select(id, options, value, onChange) {
+    var s = el('select', 'inp'); s.id = id;
+    options.forEach(function (o) { var op = el('option'); op.value = o.value; op.textContent = o.label; if (String(o.value) === String(value)) op.selected = true; s.appendChild(op); });
+    s.addEventListener('change', function () { onChange(s.value); });
+    return s;
+  }
+  function seg(values, value, onChange, labelFor) {
+    var box = el('div', 'ar-seg'); box.setAttribute('role', 'group');
+    values.forEach(function (v) {
+      var bt = el('button'); bt.type = 'button'; bt.textContent = labelFor ? labelFor(v) : String(v);
+      bt.setAttribute('aria-pressed', v === value ? 'true' : 'false');
+      bt.addEventListener('click', function () { U.clear(box); box.parentNode.replaceChild(seg(values, v, onChange, labelFor), box); onChange(v); });
+      box.appendChild(bt);
+    });
+    return box;
+  }
+
+  function paintSetup(box, b, s) {
+    U.clear(box);
+    var R = rs(b), prog = R.progression;
+    box.appendChild(el('h2', 'panel-title', 'Battle Setup'));
+    var grid = el('div', 'form-grid');
+    box.appendChild(grid);
+    // troop
+    var chs = chapters(b), chName = {};
+    chs.forEach(function (c, i) { chName[c.id] = 'Ch ' + (i + 1) + ': ' + (c.name || c.id); });
+    var troopOpts = recs(b, 'trp_').map(function (t) { return { value: t.id, label: (t.name || t.id) + (t.chapter && chName[t.chapter] ? ' (' + chName[t.chapter] + ')' : '') }; });
+    grid.appendChild(field('Troop', select('arTroop', troopOpts, s.troopId, function (v) { s.troopId = v; var tr = recOf(b, v); if (tr && tr.chapter && epsFor(b, tr.chapter) && s.source !== 'custom') s.source = tr.chapter; saveSetup(s); paintSetup(box, b, s); })));
+    // weather
+    var wOpts = [{ value: '', label: 'Clear (no weather)' }].concat(recs(b, 'wth_').map(function (w) { return { value: w.id, label: (w.name || w.id) + (w.realWorld ? ', ' + w.realWorld : '') }; }));
+    grid.appendChild(field('Weather', select('arWeather', wOpts, s.weatherId || '', function (v) { s.weatherId = v || null; saveSetup(s); })));
+    // party
+    box.appendChild(el('h3', 'section-h', 'Party'));
+    var chars = recs(b, 'chr_');
+    if (!chars.length) box.appendChild(el('div', 'empty-line', 'Author characters in Rules to field a party.'));
+    var pick = el('div', 'ar-chars');
+    chars.forEach(function (c, i) {
+      var on = s.chars.indexOf(c.id) >= 0;
+      var bt = el('button', 'ar-pick', '<span class="dot" style="background:' + PARTY_TINTS[i % PARTY_TINTS.length] + '"></span>' + esc(c.name || c.id));
+      bt.type = 'button'; bt.setAttribute('aria-pressed', on ? 'true' : 'false');
+      bt.addEventListener('click', function () {
+        var k = s.chars.indexOf(c.id);
+        if (k >= 0) s.chars.splice(k, 1);
+        else { if (s.chars.length >= PARTY_MAX) { Kit.ui.toast('A party holds up to ' + PARTY_MAX + ' characters.', 'warn'); return; } s.chars.push(c.id); }
+        saveSetup(s); paintSetup(box, b, s);
+      });
+      pick.appendChild(bt);
+    });
+    box.appendChild(pick);
+    // source
+    var srcOpts = [{ value: 'custom', label: 'Custom level and gear' }];
+    chs.forEach(function (c) { if (epsFor(b, c.id)) srcOpts.push({ value: c.id, label: 'Use ' + chName[c.id] + ' expected state' }); });
+    var g2 = el('div', 'form-grid'); g2.style.marginTop = '10px';
+    box.appendChild(g2);
+    g2.appendChild(field('Level and gear', select('arSource', srcOpts, s.source, function (v) { s.source = v; saveSetup(s); paintSetup(box, b, s); })));
+    if (s.source !== 'custom') {
+      var e = epsFor(b, s.source);
+      var note = el('p', 'ar-note');
+      note.textContent = e ? 'Level ' + num(e.targetLevel, 1) + ', gear tier ' + num(e.gearTier, 1) + (prog === 'materia' ? ', ' + ((e.materiaSet || []).length) + ' materia' : prog === 'jobs' ? ', ' + ((e.jobSet || []).length) + ' jobs' : prog === 'classes' ? ', ' + ((e.classSet || []).length) + ' classes' : '') + ', ' + ((e.abilities || []).length) + ' extra abilities. Gear is the best stocked piece at that tier.' : '';
+      box.appendChild(note);
+    } else {
+      var lv = el('input', 'inp'); lv.type = 'number'; lv.min = 1; lv.max = 99; lv.id = 'arLevel'; lv.value = s.level;
+      lv.addEventListener('change', function () { s.level = Math.max(1, Math.min(99, Math.round(+lv.value || 1))); lv.value = s.level; saveSetup(s); });
+      g2.appendChild(field('Level', lv));
+      var gt = el('input', 'inp'); gt.type = 'number'; gt.min = 1; gt.max = 20; gt.id = 'arTier'; gt.value = s.gearTier;
+      gt.addEventListener('change', function () { s.gearTier = Math.max(1, Math.min(20, Math.round(+gt.value || 1))); gt.value = s.gearTier; saveSetup(s); });
+      g2.appendChild(field('Gear tier', gt));
+      if (prog === 'materia') {
+        var mats = recs(b, 'mat_');
+        box.appendChild(el('h3', 'section-h', 'Materia'));
+        if (!mats.length) box.appendChild(el('div', 'empty-line', 'No materia authored yet.'));
+        var mp = el('div', 'ar-chars');
+        mats.forEach(function (m) {
+          var on = s.materia.indexOf(m.id) >= 0;
+          var bt = el('button', 'ar-pick', esc(m.name || m.id) + ' <small class="muted">' + esc(m.kind || '') + '</small>');
+          bt.type = 'button'; bt.setAttribute('aria-pressed', on ? 'true' : 'false');
+          bt.addEventListener('click', function () { var k = s.materia.indexOf(m.id); if (k >= 0) s.materia.splice(k, 1); else s.materia.push(m.id); saveSetup(s); bt.setAttribute('aria-pressed', k >= 0 ? 'false' : 'true'); });
+          mp.appendChild(bt);
+        });
+        box.appendChild(mp);
+        box.appendChild(el('p', 'ar-note', 'Support materia is placed in a linked pair beside the next materia you picked.'));
+      } else if (prog === 'jobs' || prog === 'classes') {
+        var pre = prog === 'jobs' ? 'job_' : 'cls_', bag = prog === 'jobs' ? s.jobs : s.classes, list = recs(b, pre);
+        var cust = el('div', 'ar-cust');
+        s.chars.forEach(function (id) {
+          var c = recOf(b, id); if (!c) return;
+          var row = el('div', 'ar-crow');
+          row.appendChild(el('span', '', esc(c.name || id)));
+          row.appendChild(select('arMod_' + id, [{ value: '', label: 'No ' + (prog === 'jobs' ? 'job' : 'class') }].concat(list.map(function (x) { return { value: x.id, label: x.name || x.id }; })), bag[id] || '', function (v) { bag[id] = v || null; saveSetup(s); }));
+          cust.appendChild(row);
+        });
+        box.appendChild(cust);
+      }
+    }
+    // rows
+    if (s.chars.length) {
+      box.appendChild(el('h3', 'section-h', 'Rows'));
+      var rowsBox = el('div', 'ar-cust');
+      s.chars.forEach(function (id) {
+        var c = recOf(b, id); if (!c) return;
+        var row = el('div', 'ar-crow');
+        row.appendChild(el('span', '', esc(c.name || id)));
+        row.appendChild(seg(['front', 'back'], s.rows[id] || 'front', function (v) { s.rows[id] = v; saveSetup(s); }, function (v) { return v === 'front' ? 'Front' : 'Back'; }));
+        rowsBox.appendChild(row);
+      });
+      box.appendChild(rowsBox);
+    }
+    // seed, mode, speed
+    box.appendChild(el('h3', 'section-h', 'Run'));
+    var g3 = el('div', 'form-grid');
+    box.appendChild(g3);
+    var seedRow = el('div', 'ar-seedrow');
+    var si = el('input', 'inp'); si.type = 'number'; si.id = 'arSeed'; si.value = s.seed; si.min = 1; si.step = 1;
+    si.addEventListener('change', function () { var v = Math.floor(+si.value); if (!isFinite(v) || v < 1) v = 1; s.seed = v; si.value = v; saveSetup(s); });
+    var rb = el('button', 'btn btn-icon', Kit.icon('spark')); rb.type = 'button'; rb.title = 'Random seed'; rb.setAttribute('aria-label', 'Random seed');
+    rb.addEventListener('click', function () { s.seed = randomSeed(); si.value = s.seed; saveSetup(s); });
+    seedRow.appendChild(si); seedRow.appendChild(rb);
+    g3.appendChild(field('Seed', seedRow));
+    var atb = (R.scheduler || 'atb') === 'atb';
+    g3.appendChild(field('Time mode', seg([true, false], s.waitMode, function (v) { s.waitMode = v; saveSetup(s); }, function (v) { return v ? 'Wait' : 'Active'; }), atb ? 'Wait pauses the gauges while you choose.' : 'The ' + (R.scheduler || 'atb') + ' scheduler always waits for your command.'));
+    g3.appendChild(field('Battle speed', seg([1, 2, 4], s.speed, function (v) { s.speed = v; saveSetup(s); if (V) V.speed = v; }, function (v) { return v + 'x'; })));
+    var go = el('div', 'btn-row'); go.style.marginTop = '12px';
+    var start = el('button', 'btn btn-primary', Kit.icon('sword') + '<span>Start battle</span>'); start.type = 'button'; start.id = 'arStart';
+    start.addEventListener('click', function () { startBattle(); });
+    var paste = el('button', 'btn', Kit.icon('import') + '<span>Paste battle code</span>'); paste.type = 'button';
+    paste.addEventListener('click', pasteCode);
+    go.appendChild(start); go.appendChild(paste);
+    box.appendChild(go);
+  }
+
+  function paintStage(box, b) {
+    U.clear(box);
+    var head = el('div', 'ar-head');
+    head.appendChild(el('h2', 'panel-title', 'Arena'));
+    var st = el('span', 'ar-status'); st.id = 'arStatus'; head.appendChild(st);
+    box.appendChild(head);
+    var stage = el('div', 'ar-stage'); stage.id = 'arStage';
+    stage.innerHTML = '<div class="ar-empty"><h3>Choose a troop and start</h3><p>Every battle is seeded, so the same seed and the same commands replay exactly. Copy a battle code to share a fight.</p></div>';
+    var sb = el('button', 'btn btn-primary', Kit.icon('sword') + '<span>Start battle</span>'); sb.type = 'button';
+    sb.addEventListener('click', function () { startBattle(); });
+    stage.firstChild.appendChild(sb);
+    box.appendChild(stage);
+    var menu = el('div', 'ar-menu'); menu.id = 'arMenu'; menu.hidden = true; box.appendChild(menu);
+    var res = el('div', 'card ar-result'); res.id = 'arResult'; res.hidden = true; box.appendChild(res);
+    var ctr = el('div', 'ar-controls'); ctr.id = 'arControls'; box.appendChild(ctr);
+    paintControls();
+  }
+  function paintControls() {
+    var ctr = document.getElementById('arControls');
+    if (!ctr) return;
+    U.clear(ctr);
+    var live = !!(V && V.S);
+    function btn(label, icon, fn, o) {
+      var x = el('button', 'btn' + (o && o.kind ? ' btn-' + o.kind : ''), (icon ? Kit.icon(icon) : '') + '<span>' + esc(label) + '</span>');
+      x.type = 'button'; if (o && o.disabled) x.disabled = true; if (o && o.pressed != null) x.setAttribute('aria-pressed', o.pressed ? 'true' : 'false');
+      x.addEventListener('click', fn); ctr.appendChild(x); return x;
+    }
+    btn('New battle', 'sword', function () { startBattle(); }, { kind: 'primary', disabled: !live });
+    btn(V && V.auto ? 'Auto: on' : 'Auto: off', 'spark', function () { if (!V) return; V.auto = !V.auto; paintControls(); if (V.auto) closeMenu(); }, { disabled: !live || (V && V.playback), pressed: !!(V && V.auto) });
+    btn('Replay same seed', 'up', function () { if (V && V.last) startBattle(V.last.cfgSeed); }, { disabled: !(V && V.last) });
+    btn('Watch replay', 'jump', function () { if (V && V.last && V.last.code) playCode(V.last.code); }, { disabled: !(V && V.last && V.last.code && V.last.inputs && V.last.inputs.length) });
+    btn('Copy battle code', 'export', copyCode, { disabled: !(V && V.last && V.last.code) });
+    btn('Battle log', 'book', openLog, { disabled: !(V && V.S) });
+  }
+  function status(t) { var s = document.getElementById('arStatus'); if (s) s.textContent = t || ''; }
+
+  // ------------------------------------------------------------------ battle lifecycle
+  function startBattle(seedOverride, preset) {
+    var b = cur(), s = V ? V.setup : defaultSetup(b);
+    if (!recOf(b, s.troopId)) { Kit.ui.toast('Choose a troop first.', 'warn'); return; }
+    var party = preset ? preset.party : WSX.buildParty(b, s);
+    if (!party.length) { Kit.ui.toast('Pick at least one character for the party.', 'warn'); return; }
+    var seed = preset ? preset.seed : (typeof seedOverride === 'number' ? seedOverride : s.seed);
+    var troopId = preset ? preset.troopId : s.troopId, weatherId = preset ? preset.weatherId || null : s.weatherId || null;
+    var opts = preset ? (preset.opts || {}) : { waitMode: s.waitMode };
+    var data = WSX.dataFor(b, troopId, party, weatherId);
+    var S;
+    try { S = ENGINE_BATTLE.init(data, seed, opts); }
+    catch (e) { Kit.ui.toast('The battle could not start: ' + e.message, 'error'); console.error(e); return; }
+    if (!V) return;
+    stopLoop();
+    V.S = S; V.data = data; V.seed = seed; V.opts = opts; V.party = party; V.troopId = troopId; V.weatherId = weatherId;
+    V.inputs = []; V.log = []; V.queue = []; V.popups = []; V.anim = null; V.flash = {}; V.fade = {}; V.acc = 0; V.lastTs = 0; V.idle = 0;
+    V.playback = preset && preset.inputs ? { inputs: preset.inputs.slice(), i: 0, expect: preset.end || null } : null;
+    V.auto = V.playback ? false : !!V.auto;
+    V.speed = V.setup.speed || 1;
+    V.menu = null; V.ended = false;
+    V.disp = {}; S.units.forEach(function (u) { V.disp[u.uid] = { hp: u.hp, mp: u.mp, ko: u.ko }; });
+    V.names = {}; S.units.forEach(function (u) { V.names[u.uid] = u.name; });
+    V.last = { cfgSeed: seed, troopId: troopId, party: party, seed: seed, weatherId: weatherId, opts: opts, inputs: V.inputs, code: null };
+    if (S.db.warnings.length) Kit.ui.toast(S.db.warnings[0], 'warn', 5000);
+    if (S.result) { Kit.ui.toast('That troop or party has no fighters.', 'warn'); }
+    buildCanvas();
+    var res = document.getElementById('arResult'); if (res) res.hidden = true;
+    closeMenu();
+    paintControls();
+    status((V.playback ? 'Replaying seed ' : 'Seed ') + seed + ' | ' + S.sched + (S.sched === 'atb' ? (S.waitMode ? ' wait' : ' active') : '') + (S.preemptive ? ' | preemptive strike' : ''));
+    if (S.preemptive) pushLog({ type: 'note', t: 0, text: 'Preemptive strike. The party moves first.' });
+    V.raf = requestAnimationFrame(frame);
+  }
+  WSX.start = startBattle;
+  // Opens the Arena with a troop selected (and optionally a chapter expected state), then starts the battle.
+  WSX.preload = function (troopId, o) {
+    var b = cur(), s = defaultSetup(b);
+    s.troopId = troopId;
+    var tr = recOf(b, troopId);
+    if (o && o.source) s.source = o.source; else if (tr && tr.chapter && epsFor(b, tr.chapter)) s.source = tr.chapter;
+    if (o && o.seed) s.seed = o.seed;
+    saveSetup(s);
+    WSX._pending = { start: true };
+    if (Kit.active() === 'arena') Kit.rerender(); else Kit.go('arena');
+  };
+
+  function buildCanvas() {
+    var stage = document.getElementById('arStage');
+    if (!stage) return;
+    U.clear(stage);
+    var res = resolution(cur());
+    var c = el('canvas'); c.width = res.w; c.height = res.h; c.setAttribute('role', 'img'); c.setAttribute('aria-label', 'Battle view');
+    stage.appendChild(c);
+    V.canvas = c; V.g = c.getContext('2d'); V.g.imageSmoothingEnabled = false; V.res = res;
+    fitCanvas();
+    if (!V.ro && typeof ResizeObserver === 'function') { V.ro = new ResizeObserver(function () { fitCanvas(); }); V.ro.observe(stage); }
+    layout();
+  }
+  function fitCanvas() {
+    if (!V || !V.canvas || !V.canvas.isConnected) return;
+    var stage = V.canvas.parentNode, w = stage.clientWidth - 8, vh = (window.innerHeight || 800) * 0.62;
+    var sc = Math.max(1, Math.min(Math.floor(w / V.res.w), Math.floor(vh / V.res.h)));
+    V.canvas.style.width = (V.res.w * sc) + 'px';
+    V.canvas.style.height = (V.res.h * sc) + 'px';
+    V.scale = sc;
+  }
+  // Positions of every unit on the canvas.
+  function layout() {
+    var W = V.res.w, H = V.res.h, field = Math.round(H * 0.64), foes = V.S.units.filter(function (u) { return u.side === 'foe'; }), party = V.S.units.filter(function (u) { return u.side === 'party'; });
+    V.pos = {};
+    var front = foes.filter(function (u) { return u.row !== 'back'; }), back = foes.filter(function (u) { return u.row === 'back'; });
+    var n = Math.max(front.length, back.length, 1);
+    var size = Math.max(16, Math.min(48, Math.floor((field - 16) / Math.max(1, Math.ceil(n))) - 2));
+    function col(list, x) {
+      var gap = (field - 12) / (list.length + 1);
+      list.forEach(function (u, i) { var s = u.isBoss ? Math.min(64, Math.round(size * 1.35)) : size; V.pos[u.uid] = { x: Math.round(x - s / 2), y: Math.round(8 + gap * (i + 1) - s / 2), w: s, h: s }; });
+    }
+    col(back, W * 0.16); col(front, W * 0.36);
+    var pg = (field - 12) / (party.length + 1);
+    party.forEach(function (u, i) { var x = Math.round(W * (u.row === 'back' ? 0.86 : 0.78)); V.pos[u.uid] = { x: x - 6, y: Math.round(8 + pg * (i + 1) - 10), w: 12, h: 20, tint: PARTY_TINTS[i % PARTY_TINTS.length] }; });
+    V.field = field;
+  }
+
+  // ------------------------------------------------------------------ main loop
+  var DUR = { action: 520, damage: 90, heal: 90, miss: 90, ko: 360, status: 90, revive: 200, limitReady: 240, end: 400 };
+  function frame(ts) {
+    if (!V || !V.canvas || !V.canvas.isConnected) { stopLoop(); return; }
+    var dt = V.lastTs ? Math.min(100, ts - V.lastTs) : 16;
+    V.lastTs = ts;
+    var sp = V.speed || 1;
+    // presentation queue first
+    if (V.queue.length) {
+      V.idle += dt * sp;
+      while (V.queue.length && V.idle >= 0) {
+        var e = V.queue[0];
+        if (!e._started) { e._started = true; playEvent(e); V.idle -= (DUR[e.type] || 0); if (V.idle < 0) break; }
+        V.queue.shift();
+      }
+      if (!V.queue.length) { syncDisp(); V.idle = 0; if (V.S.result && !V.ended) onEnd(); }
+    } else if (!V.S.result) {
+      tickEngine(dt * sp);
+    } else if (!V.ended) { onEnd(); }
+    draw(ts);
+    V.raf = requestAnimationFrame(frame);
+  }
+  function feed(r) {
+    V.S = r.state;
+    (r.events || []).forEach(function (e) {
+      if (e.type === 'tick') return;
+      V.queue.push(e);
+      pushLog(e);
+    });
+  }
+  function tickEngine(ms) {
+    var S = V.S, pb = V.playback;
+    // playback: apply recorded inputs at their exact tick
+    if (pb && pb.i < pb.inputs.length && S.t >= pb.inputs[pb.i].t) {
+      var rec = pb.inputs[pb.i++];
+      V.inputs.push(rec);
+      feed(ENGINE_BATTLE.advance(S, rec.input));
+      return;
+    }
+    if (S.awaiting && !pb) {
+      if (V.auto) { var sug = ENGINE_BATTLE.suggest(S, null); if (sug) { give(sug); return; } }
+      openMenu();
+      if (S.waitMode || S.sched !== 'atb') return;
+    } else if (!S.awaiting) closeMenu();
+    if (S.sched === 'atb') {
+      var rate = num((rs(cur()).battle || {}).tickRate, 30);
+      V.acc += ms * rate / 1000;
+      var n = Math.floor(V.acc);
+      if (n < 1) return;
+      V.acc -= n;
+      if (pb && pb.i < pb.inputs.length) n = Math.min(n, pb.inputs[pb.i].t - S.t);
+      if (n < 1) return;
+      feed(ENGINE_BATTLE.advance(S, { type: 'step', ticks: n }));
+    } else {
+      V.acc += ms;
+      if (V.acc < 380) return;
+      V.acc = 0;
+      if (pb && pb.i < pb.inputs.length && S.t >= pb.inputs[pb.i].t) return;
+      feed(ENGINE_BATTLE.advance(S, { type: 'step', ticks: 1 }));
+    }
+  }
+  function give(input) {
+    var S = V.S, t = S.t, r = ENGINE_BATTLE.advance(S, input);
+    var rejected = (r.events || []).some(function (e) { return e.value === 'rejected'; });
+    if (rejected) { var why = r.events.filter(function (e) { return e.value === 'rejected'; })[0]; Kit.ui.toast(why.name || 'That command was rejected.', 'warn'); return false; }
+    V.inputs.push({ t: t, input: input });
+    closeMenu();
+    feed(r);
+    return true;
+  }
+  function syncDisp() { V.S.units.forEach(function (u) { V.disp[u.uid] = { hp: u.hp, mp: u.mp, ko: u.ko }; }); }
+  function popup(uid, text, color) {
+    var p = V.pos[uid]; if (!p) return;
+    V.popups.push({ x: p.x + p.w / 2, y: p.y + 2, text: String(text), color: color, born: V.lastTs });
+  }
+  function playEvent(e) {
+    var d;
+    if (e.type === 'action') {
+      V.anim = { actor: e.actor, born: V.lastTs, targets: e.targets || [], element: e.element, name: e.name };
+      var u = V.S.units.filter(function (x) { return x.uid === e.actor; })[0];
+      if (u && V.disp[u.uid]) V.disp[u.uid].mp = u.mp;
+    } else if (e.type === 'damage') {
+      d = V.disp[e.target]; if (d) d.hp = Math.max(0, d.hp - num(e.value));
+      popup(e.target, e.value, e.crit ? '#ffe066' : '#ffffff');
+      V.flash[e.target] = V.lastTs;
+    } else if (e.type === 'heal') {
+      d = V.disp[e.target]; if (d) d.hp = d.hp + num(e.value);
+      popup(e.target, e.value, '#7dff9a');
+    } else if (e.type === 'miss') {
+      if (e.target) popup(e.target, 'MISS', '#b8c4d8');
+    } else if (e.type === 'ko') {
+      d = V.disp[e.target]; if (d) { d.ko = true; d.hp = 0; }
+      V.fade[e.target] = V.lastTs;
+    } else if (e.type === 'revive') {
+      d = V.disp[e.target]; if (d) d.ko = false; delete V.fade[e.target];
+    } else if (e.type === 'limitReady' && e.value === 'full') {
+      popup(e.target, 'LIMIT', '#e3b453');
+    } else if (e.type === 'status' && e.target) {
+      popup(e.target, String(e.value).charAt(0) === '-' ? 'CURED' : shortName(e.name || 'STATUS', 7), '#c89cf0');
+    }
+  }
+  function onEnd() {
+    V.ended = true;
+    closeMenu();
+    var r = V.S.result;
+    V.last.inputs = V.inputs.slice();
+    V.last.end = { outcome: r.outcome, ticks: r.ticks, turns: r.turns, rngCalls: r.rngCalls };
+    V.last.code = WSX.encodeCode({ v: 1, troopId: V.troopId, party: V.party, seed: V.seed, inputs: V.last.inputs, weatherId: V.weatherId, opts: V.opts, end: V.last.end });
+    var box = document.getElementById('arResult');
+    if (box) {
+      var label = { win: 'Victory', lose: 'Defeat', flee: 'Escaped', timeout: 'Time out' }[r.outcome] || r.outcome;
+      var chip = { win: 'chip-ok', lose: 'chip-error', flee: 'chip-muted', timeout: 'chip-warning' }[r.outcome] || 'chip-muted';
+      var match = '';
+      if (V.playback && V.playback.expect) {
+        var ok = V.playback.expect.outcome === r.outcome && V.playback.expect.ticks === r.ticks && V.playback.expect.turns === r.turns && (V.playback.expect.rngCalls == null || V.playback.expect.rngCalls === r.rngCalls);
+        match = '<p class="' + (ok ? 'msg msg-forward' : 'msg msg-error') + '">' + (ok ? 'Replay matched the original battle exactly.' : 'Replay diverged from the original. The records may have changed since the code was made.') + '</p>';
+        Kit.ui.toast(ok ? 'Replay matched the original battle.' : 'Replay diverged from the original.', ok ? 'ok' : 'warn');
+      }
+      box.innerHTML = '<div class="btn-row"><span class="chip ' + chip + '">' + esc(label) + '</span><strong>' + esc(V.S.db.troop ? V.S.db.troop.name : '') + '</strong></div>' + match +
+        '<dl class="kv"><dt>Ticks</dt><dd>' + r.ticks + '</dd><dt>Turns</dt><dd>' + r.turns + '</dd><dt>HP lost</dt><dd>' + r.resourcesUsed.hpLost + ' (' + r.resourcesUsed.hpPct + '%)</dd><dt>MP spent</dt><dd>' + r.resourcesUsed.mpSpent + ' (' + r.resourcesUsed.mpPct + '%)</dd>' +
+        (r.outcome === 'win' ? '<dt>Rewards</dt><dd>' + r.rewards.gil + ' gil, ' + r.rewards.exp + ' EXP, ' + r.rewards.ap + ' AP</dd>' : '') +
+        '<dt>Seed</dt><dd>' + V.seed + '</dd><dt>Inputs</dt><dd>' + V.inputs.length + '</dd></dl>';
+      box.hidden = false;
+    }
+    paintControls();
+    status('Seed ' + V.seed + ' | ' + r.outcome + ' in ' + r.turns + ' turns');
+  }
+
+  // ------------------------------------------------------------------ command menu (DOM overlay, 44px buttons)
+  function closeMenu() { var m = document.getElementById('arMenu'); if (m) { m.hidden = true; U.clear(m); } if (V) V.menu = null; }
+  function openMenu() {
+    var S = V.S, aw = S.awaiting, m = document.getElementById('arMenu');
+    if (!aw || !m) return;
+    var key = aw.actor + '|' + aw.commands.map(function (c) { return c.key + ':' + c.abls.map(function (x) { return x.id + (x.ok ? 1 : 0); }).join(','); }).join(';') + '|' + aw.targets.foe.join(',') + '|' + aw.targets.party.join(',');
+    if (V.menu && V.menu.key === key) {
+      if (V.menu.level === 'targets') Array.prototype.forEach.call(m.querySelectorAll('[data-uid] small'), function (sm) {
+        var u = S.units.filter(function (x) { return x.uid === sm.parentNode.getAttribute('data-uid'); })[0];
+        if (u) { var t = u.hp + ' / ' + u.maxHp + ' HP'; if (sm.textContent !== t) sm.textContent = t; }
+      });
+      return;
+    }
+    var keep = V.menu && V.menu.actor === aw.actor ? V.menu : null;
+    V.menu = { key: key, actor: aw.actor, level: keep ? keep.level : 'root', cmd: keep ? keep.cmd : null, abl: keep ? keep.abl : null };
+    paintMenu();
+  }
+  function paintMenu() {
+    var S = V.S, aw = S.awaiting, m = document.getElementById('arMenu'), st = V.menu;
+    if (!aw || !m || !st) return;
+    U.clear(m); m.hidden = false;
+    var cmd = st.cmd ? aw.commands.filter(function (c) { return c.key === st.cmd; })[0] : null;
+    if (st.level !== 'root' && !cmd) st.level = 'root';
+    var head = el('div', 'ar-menu-head');
+    head.appendChild(el('span', 'who', esc(V.names[aw.actor] || aw.actor) + (st.level === 'root' ? '' : ' | ' + esc(cmd.label))));
+    if (st.level !== 'root') {
+      var back = el('button', 'btn btn-ghost', Kit.icon('up') + '<span>Back</span>'); back.type = 'button';
+      back.addEventListener('click', function () { st.level = st.level === 'targets' && cmd.abls.length > 1 ? 'abls' : 'root'; st.abl = null; paintMenu(); });
+      head.appendChild(back);
+    } else if (!S.waitMode && S.sched === 'atb') head.appendChild(el('span', 'chip chip-warning', 'Active'));
+    m.appendChild(head);
+    var grid = el('div', 'ar-menu-grid');
+    m.appendChild(grid);
+    function b(label, sub, fn, o) {
+      var x = el('button', 'btn' + (o && o.cls ? ' ' + o.cls : ''), '<span>' + esc(label) + '</span>' + (sub ? '<small>' + esc(sub) + '</small>' : ''));
+      x.type = 'button'; if (o && o.disabled) x.disabled = true;
+      x.addEventListener('click', fn); grid.appendChild(x); return x;
+    }
+    if (st.level === 'root') {
+      aw.commands.forEach(function (c) {
+        if (c.key === 'flee') { b('Flee', '', function () { give({ type: 'flee', actor: aw.actor }); }); return; }
+        var usable = c.abls.some(function (x) { return x.ok; });
+        b(c.label, c.abls.length > 1 ? c.abls.length + ' abilities' : (c.abls[0] && c.abls[0].mp ? c.abls[0].mp + ' MP' : ''), function () {
+          st.cmd = c.key;
+          if (c.abls.length === 1) { st.abl = c.abls[0].id; st.level = 'targets'; } else st.level = 'abls';
+          if (st.level === 'targets' && !needsTarget(c.abls[0])) { fire(c.abls[0], null); return; }
+          paintMenu();
+        }, { disabled: !usable, cls: c.key === 'limit' ? 'limit' : '' });
+      });
+    } else if (st.level === 'abls') {
+      cmd.abls.forEach(function (x) {
+        b(x.name, (x.mp ? x.mp + ' MP' : 'Free') + (x.scope === 'all' ? ' | all' : '') + (x.element ? ' | ' + x.element : ''), function () {
+          st.abl = x.id;
+          if (!needsTarget(x)) { fire(x, null); return; }
+          st.level = 'targets'; paintMenu();
+        }, { disabled: !x.ok });
+      });
+    } else {
+      var ab = cmd.abls.filter(function (x) { return x.id === st.abl; })[0];
+      if (!ab) { st.level = 'root'; paintMenu(); return; }
+      var first = ab.side === 'ally' ? 'party' : 'foe', order = first === 'party' ? ['party', 'foe'] : ['foe', 'party'];
+      if (ab.scope === 'all') {
+        order.forEach(function (side) {
+          if (!aw.targets[side].length) return;
+          b(side === 'foe' ? 'All foes' : 'All allies', aw.targets[side].length + ' target' + (aw.targets[side].length === 1 ? '' : 's'), function () { fire(ab, aw.targets[side][0]); });
+        });
+        return;
+      }
+      order.forEach(function (side) {
+        aw.targets[side].forEach(function (uid) {
+          var u = V.S.units.filter(function (x) { return x.uid === uid; })[0];
+          if (!u) return;
+          var label = V.names[uid] || uid;
+          b(label, u.hp + ' / ' + u.maxHp + ' HP', function () { fire(ab, uid); }).setAttribute('data-uid', uid);
+        });
+      });
+    }
+  }
+  function needsTarget(x) { return x && x.side !== 'self'; }
+  function fire(x, uid) {
+    var aw = V.S.awaiting;
+    if (!aw) return;
+    var tgt = uid || (x.side === 'ally' ? aw.targets.party[0] : aw.targets.foe[0]);
+    give({ type: 'command', actor: aw.actor, abl: x.id, target: tgt });
+  }
+
+  // ------------------------------------------------------------------ drawing
+  function bar(g, x, y, w, h, frac, color, back) {
+    g.fillStyle = back || '#1d2233'; g.fillRect(x, y, w, h);
+    g.fillStyle = color; g.fillRect(x, y, Math.max(0, Math.round(w * Math.max(0, Math.min(1, frac)))), h);
+  }
+  function elementColor(k) {
+    var els = rs(cur()).elements || [];
+    for (var i = 0; i < els.length; i++) if (els[i] && els[i].key === k && els[i].color) return els[i].color;
+    return '#ffffff';
+  }
+  function draw(ts) {
+    var g = V.g, W = V.res.w, H = V.res.h, S = V.S, field = V.field;
+    g.imageSmoothingEnabled = false;
+    // backdrop
+    g.fillStyle = '#10142a'; g.fillRect(0, 0, W, field);
+    g.fillStyle = '#18203c'; g.fillRect(0, Math.round(field * 0.35), W, Math.round(field * 0.25));
+    g.fillStyle = '#243052'; g.fillRect(0, Math.round(field * 0.6), W, field - Math.round(field * 0.6));
+    g.fillStyle = '#2e3c63'; for (var gx = 0; gx < W; gx += 16) g.fillRect(gx, Math.round(field * 0.6) + ((gx / 16) % 2 ? 6 : 12), 8, 1);
+    if (V.weatherId) {
+      var w = recOf(cur(), V.weatherId), txt = w ? String(w.realWorld || w.name || '') : '';
+      g.fillStyle = 'rgba(160,190,255,.25)';
+      var off = Math.floor(ts / 40) % 12;
+      if (/rain|storm|shower|drizzle|monsoon|hail/i.test(txt)) for (var rx = -20; rx < W; rx += 12) for (var ry = 0; ry < field; ry += 18) g.fillRect(rx + ((ry + off * 2) % 12), (ry + off * 3) % field, 1, 4);
+      else if (/snow|blizzard|flurr/i.test(txt)) for (var sx = 0; sx < W; sx += 14) g.fillRect((sx + off) % W, (sx * 7 + off * 2) % field, 1, 1);
+      else if (/fog|mist|haze|smog/i.test(txt)) { g.fillStyle = 'rgba(200,210,230,.10)'; g.fillRect(0, Math.round(field * 0.4), W, Math.round(field * 0.6)); }
+      else if (/heat|sun|drought|clear/i.test(txt)) { g.fillStyle = 'rgba(255,190,90,.08)'; g.fillRect(0, 0, W, field); }
+      if (txt) drawText(g, shortName(txt, 20), 3, 3, '#9fb3d9', 1);
+    }
+    var an = V.anim && ts - V.anim.born < 520 / (V.speed || 1) ? V.anim : null;
+    // foes
+    S.units.forEach(function (u) {
+      var p = V.pos[u.uid], d = V.disp[u.uid];
+      if (!p) return;
+      var dx = an && an.actor === u.uid ? (u.side === 'foe' ? 6 : -6) : 0;
+      var alpha = 1;
+      if (d && d.ko) { var ft = V.fade[u.uid] ? (ts - V.fade[u.uid]) / 500 : 1; alpha = u.side === 'foe' ? Math.max(0, 1 - ft) : 1; }
+      if (alpha <= 0) return;
+      g.globalAlpha = alpha;
+      if (u.side === 'foe') {
+        var spr = foeSprite(u.fam, u.tier, u.palette, p.w);
+        g.drawImage(spr, p.x + dx - 1, p.y - 1);
+        if (u.charging) { g.fillStyle = '#e3b453'; g.fillRect(p.x + dx, p.y - 3, Math.round(p.w * (1 - u.charging.left / Math.max(1, (S.db.abl[u.charging.abl] || {}).chargeTicks || 1))), 1); }
+      } else {
+        var koP = d && d.ko;
+        if (koP) {
+          g.fillStyle = '#555a66'; g.fillRect(p.x - 4, p.y + p.h - 5, p.h, 5);
+        } else {
+          var tint = p.tint, x = p.x + dx, y = p.y;
+          g.fillStyle = '#07080d'; g.fillRect(x - 1, y - 1, p.w + 2, p.h + 2);
+          g.fillStyle = tint; g.fillRect(x, y + 6, p.w, p.h - 6);
+          g.fillStyle = shade(tint, 0.35); g.fillRect(x + 2, y, p.w - 4, 7);
+          g.fillStyle = '#f1d7b8'; g.fillRect(x + 3, y + 2, p.w - 6, 4);
+          g.fillStyle = '#07080d'; g.fillRect(x + 4, y + 3, 1, 1);
+          g.fillStyle = shade(tint, -0.35); g.fillRect(x, y + p.h - 5, p.w, 2);
+          if (frac2(u, d) < 0.25) { g.fillStyle = 'rgba(255,80,80,.35)'; g.fillRect(x, y, p.w, p.h); }
+          weaponGlyph(g, u.weaponClass, x - 2, y + 11, '#c9c1ab');
+          if (S.awaiting && S.awaiting.actor === u.uid && Math.floor(ts / 300) % 2) { g.fillStyle = '#e3b453'; g.fillRect(x + p.w / 2 - 1, y - 6, 3, 3); }
+        }
+      }
+      if (V.flash[u.uid] && ts - V.flash[u.uid] < 140) { g.globalAlpha = 0.6; g.fillStyle = '#ffffff'; g.fillRect(p.x + dx, p.y, p.w, p.h); }
+      g.globalAlpha = 1;
+      if (u.statuses && u.statuses.length && !(d && d.ko)) { g.fillStyle = '#c89cf0'; g.fillRect(p.x + dx, p.y + p.h + 1, Math.min(p.w, u.statuses.length * 3), 1); }
+    });
+    // action flash lines
+    if (an) {
+      var ap = V.pos[an.actor], col = an.element ? elementColor(an.element) : '#ffffff';
+      drawText(g, shortName(an.name, 18), Math.round(W / 2 - textW(shortName(an.name, 18)) / 2), Math.max(10, field - 12), '#ffffff');
+      if (ap) (an.targets || []).forEach(function (t) {
+        var tp = V.pos[t]; if (!tp) return;
+        g.fillStyle = col; g.globalAlpha = 0.35;
+        g.fillRect(tp.x - 1, tp.y - 1, tp.w + 2, 1); g.fillRect(tp.x - 1, tp.y + tp.h, tp.w + 2, 1);
+        g.globalAlpha = 1;
+      });
+    }
+    // popups
+    V.popups = V.popups.filter(function (p) { return ts - p.born < 900 / Math.max(1, (V.speed || 1) * 0.75); });
+    V.popups.forEach(function (p) { var age = (ts - p.born) / 900; var s = p.text.length > 4 ? 1 : 2; drawText(g, p.text, Math.round(p.x - textW(p.text, s) / 2), Math.round(p.y - age * 12), p.color, s); });
+    // HUD
+    var hy = field, hh = H - field;
+    g.fillStyle = '#0b0e1d'; g.fillRect(0, hy, W, hh);
+    g.fillStyle = '#3a4a80'; g.fillRect(0, hy, W, 1); g.fillRect(Math.round(W * 0.36), hy + 3, 1, hh - 6);
+    var foes = S.units.filter(function (u) { return u.side === 'foe'; }), party = S.units.filter(function (u) { return u.side === 'party'; });
+    var fy = hy + 4;
+    foes.forEach(function (u) {
+      if (fy > H - 7) return;
+      var d = V.disp[u.uid];
+      drawText(g, shortName(u.name, Math.floor((W * 0.36 - 8) / 4)), 4, fy, d && d.ko ? '#5d6480' : '#e8e2cf');
+      if (!(d && d.ko)) bar(g, 4, fy + 6, Math.round(W * 0.36 - 10), 1, frac2(u, d), '#e07a6e');
+      fy += 9;
+    });
+    var px = Math.round(W * 0.36) + 4, pw = W - px - 3, rowH = Math.max(9, Math.min(14, Math.floor((hh - 6) / Math.max(1, party.length))));
+    party.forEach(function (u, i) {
+      var d = V.disp[u.uid] || u, y = hy + 4 + i * rowH, isAw = S.awaiting && S.awaiting.actor === u.uid;
+      var nameCols = Math.max(3, Math.floor(pw * 0.26 / 4));
+      drawText(g, shortName(u.name, nameCols), px, y, d.ko ? '#5d6480' : isAw ? '#e3b453' : '#e8e2cf');
+      var hpTxt = d.hp + '/' + u.maxHp, hx = px + nameCols * 4 + 3;
+      var lowCol = d.ko ? '#8a4a4a' : frac2(u, d) < 0.25 ? '#ffb347' : '#e8e2cf';
+      drawText(g, hpTxt, hx, y, lowCol);
+      var gx0 = hx + textW('9999/9999') + 4, gw = Math.max(10, W - 3 - gx0);
+      if (rowH >= 12) {
+        drawText(g, String(d.mp), gx0, y, '#9ad1ff');
+        var gy = y + 6;
+        bar(g, gx0 + 14, y + 1, Math.max(8, gw - 14), 2, S.sched === 'atb' ? u.gauge / S.gaugeMax : (u.ready ? 1 : 0), u.ready ? '#e3b453' : '#6fc7b6');
+        if (u.limits && u.limits.length) bar(g, gx0 + 14, gy - 1, Math.max(8, gw - 14), 1, u.limit.gauge, u.limit.gauge >= 1 ? '#ff8aa0' : '#8a5a9e');
+      } else {
+        bar(g, gx0, y + 2, gw, 2, S.sched === 'atb' ? u.gauge / S.gaugeMax : (u.ready ? 1 : 0), u.ready ? '#e3b453' : '#6fc7b6');
+      }
+    });
+    if (S.sched !== 'atb' && !S.result) drawText(g, (S.sched === 'rounds' ? 'ROUND ' + (S.round ? S.round.n : 1) : 'CTB') + ' T' + S.t, W - textW('ROUND 99 T9999') - 3, 3, '#9fb3d9');
+    if (S.result && V.ended) {
+      var lab = { win: 'VICTORY', lose: 'DEFEAT', flee: 'ESCAPED', timeout: 'TIME OUT' }[S.result.outcome] || '';
+      var sc = W >= 200 ? 3 : 2, tw = textW(lab, sc);
+      g.fillStyle = 'rgba(7,8,13,.6)'; g.fillRect(0, Math.round(field / 2 - 14), W, 28);
+      drawText(g, lab, Math.round(W / 2 - tw / 2), Math.round(field / 2 - 7), S.result.outcome === 'win' ? '#e3b453' : S.result.outcome === 'lose' ? '#f07a6e' : '#c9c1ab', sc);
+    }
+  }
+  function frac2(u, d) { return u.maxHp ? (d ? d.hp : u.hp) / u.maxHp : 0; }
+
+  // ------------------------------------------------------------------ log, codes
+  function nm(uid) { return uid ? (V.names[uid] || uid) : ''; }
+  function describe(e) {
+    switch (e.type) {
+      case 'note': return e.text;
+      case 'ready': return nm(e.actor) + ' is ready.';
+      case 'command': return e.value === 'flee' ? nm(e.actor) + ' tries to flee.' : nm(e.actor) + ' chooses ' + (e.name || e.abl) + '.';
+      case 'action': return nm(e.actor) + (e.value === 'counter' ? ' counters with ' : ' uses ') + (e.name || e.abl) + ' on ' + (e.targets || []).map(nm).join(', ') + '.';
+      case 'damage': return nm(e.target) + ' takes ' + e.value + (e.element ? ' ' + e.element : '') + ' damage' + (e.crit ? ', a critical hit' : '') + '.';
+      case 'heal': return nm(e.target) + ' recovers ' + e.value + ' HP.';
+      case 'miss': return e.value === 'mp' ? nm(e.actor) + ' lacks the MP.' : e.value === 'flee' ? (e.name || 'Could not escape') + '.' : e.value === 'rejected' ? (e.name || 'Rejected.') : nm(e.actor) + ' misses ' + nm(e.target) + '.';
+      case 'status': return String(e.value).charAt(0) === '-' ? nm(e.target) + ' is free of ' + String(e.value).slice(1) + ' (' + e.name + ').' : nm(e.target) + ' is afflicted with ' + (e.name || e.value) + '.';
+      case 'limitReady': return e.value === 'full' ? nm(e.target) + ' is ready to break their Limit.' : nm(e.target) + ' reached ' + (e.name || 'a new Limit level') + '.';
+      case 'ko': return nm(e.target) + ' is knocked out' + (e.actor ? ' by ' + nm(e.actor) : '') + '.';
+      case 'revive': return nm(e.target) + ' is revived.';
+      case 'end': return 'Battle over: ' + e.value + '.';
+      default: return e.type;
+    }
+  }
+  function pushLog(e) { V.log.push(e); if (V.log.length > 2000) V.log.splice(0, V.log.length - 2000); }
+  function openLog() {
+    if (!V || !V.log) return;
+    Kit.ui.drawer({
+      title: 'Battle log',
+      body: function (bd) {
+        var p = el('p', 'muted'); p.textContent = V.log.length + ' events, seed ' + V.seed + '. Newest last.'; bd.appendChild(p);
+        var list = el('div', 'ar-log');
+        V.log.slice(-600).forEach(function (e) {
+          var ln = el('div', 'ln k-' + e.type);
+          ln.innerHTML = '<span class="t">t ' + e.t + '</span><span class="m">' + esc(describe(e)) + '</span>';
+          list.appendChild(ln);
+        });
+        bd.appendChild(list);
+        setTimeout(function () { bd.scrollTop = bd.scrollHeight; }, 0);
+      }
+    });
+  }
+  function copyCode() {
+    if (!V || !V.last || !V.last.code) return;
+    var code = V.last.code;
+    function shown() {
+      Kit.ui.dialog({ title: 'Battle code', body: function (bd) { var t = el('textarea', 'inp ar-code'); t.readOnly = true; t.value = code; bd.appendChild(el('p', 'muted', 'Paste this into any Saga Forge with the same records to replay the fight tick for tick.')); bd.appendChild(t); setTimeout(function () { t.focus(); t.select(); }, 0); }, actions: [{ label: 'Done', kind: 'primary' }] });
+    }
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(code).then(function () { Kit.ui.toast('Battle code copied.', 'ok'); }, shown);
+      else shown();
+    } catch (e) { shown(); }
+  }
+  function playCode(code) {
+    var o;
+    try { o = WSX.decodeCode(code); } catch (e) { Kit.ui.toast(e.message || 'That battle code could not be read.', 'error'); return false; }
+    var b = cur();
+    if (!recOf(b, o.troopId)) { Kit.ui.toast('This project has no troop ' + o.troopId + '.', 'error'); return false; }
+    if (!V || Kit.active() !== 'arena' || !document.getElementById('arStage')) { WSX._pending = { code: code }; if (Kit.active() === 'arena') Kit.rerender(); else Kit.go('arena'); return true; }
+    startBattle(null, o);
+    return true;
+  }
+  WSX.playCode = playCode;
+  function pasteCode() {
+    Kit.ui.prompt({ title: 'Paste battle code', label: 'Battle code', multiline: true, okLabel: 'Replay', validate: function (v) { try { WSX.decodeCode(v); return null; } catch (e) { return 'That is not a valid battle code.'; } } }).then(function (v) { if (v) playCode(v); });
+  }
+
+  Kit.mount('arena', { title: 'Arena', icon: 'arena', canEnter: WSX.canEnter, render: WSX.render, onLeave: function () { stopLoop(); closeMenu(); return true; } });
 })();
 // === WS:ARENA END ===
 // === WS:SIM BEGIN ===
