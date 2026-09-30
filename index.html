@@ -307,6 +307,9 @@ PASS 1 (2026-09-30, Opus): KIT:CORE and Shell. COMPLETE.
     WS.codex.generate), not by typing every field into the forms. Items in battle are still not modeled. Arena targets are chosen
     from buttons. Simulator results are not persisted across reloads. Troops are reported only when all of their battles finish.
 === END PASS 6 ===
+PASS 6 PATCH: Charter section renamed from Party to Starting Party (label, member field, target note). Field key 'party'
+and the charter.party namespace are unchanged, so bundles stay compatible. Recruiting companions mid journey (a joins at
+chapter reference on characters, party size changes per chapter) is DEFERRED to Day 148 World or Day 149 Story.
 === END BUILD LOG ===
 -->
 <!doctype html>
@@ -3742,8 +3745,8 @@ details.cx-block > .cx-block-sum { padding: 0; }
     protagonist: { name: 'charter.protagonist', label: 'Protagonist', section: true, fields: [
       fd('protagonist', 'Protagonist', 'longtext', { required: true, help: 'Who they are, what they want, and what stands in the way.' })
     ] },
-    party: { name: 'charter.party', label: 'Party', section: true, fields: [
-      fd('members', 'Party members', 'list', { required: true, itemLabel: 'Member', help: 'The target is eight members, but you can add more or fewer.', of: [
+    party: { name: 'charter.party', label: 'Starting Party', section: true, fields: [
+      fd('members', 'Starting party members', 'list', { required: true, itemLabel: 'Member', help: 'The companions who begin the journey with the hero. The target is eight members, but you can add more or fewer.', of: [
         fd('name', 'Name', 'text', { required: true, max: 60 }),
         fd('past', 'Past', 'longtext', { required: true, max: 300, help: 'One sentence about who they were before the story.' })
       ] })
@@ -3927,9 +3930,9 @@ details.cx-block > .cx-block-sum { padding: 0; }
     mk('magic', 'Magic', 'How magic works in this world, and how it ties to weather and the sky.', plain('magic'), { type: TYPES.magic }),
     mk('villain', 'Villain', 'The opposing force and the reason behind it.', plain('villain'), { type: TYPES.villain }),
     mk('protagonist', 'Protagonist', 'The hero at the center of the story.', plain('protagonist'), { type: TYPES.protagonist }),
-    mk('party', 'Party', 'The companions who travel with the hero. The target is eight, but the list is not capped.', plain('party'), { type: TYPES.party, extra: function (b, rec) {
+    mk('party', 'Starting Party', 'The companions who begin the journey with the hero. The target is eight, but the list is not capped. Recruiting more along the way is planned for the World and Story days.', plain('party'), { type: TYPES.party, extra: function (b, rec) {
       var out = [], S = SECTION_BY.party, m = Array.isArray(rec.members) ? rec.members : [];
-      if (m.length && m.length < 8) out.push(item(S, 'members', 'The target is eight party members and you have ' + m.length + '.', 'warning'));
+      if (m.length && m.length < 8) out.push(item(S, 'members', 'The target is eight starting party members and you have ' + m.length + '.', 'warning'));
       var seen = {};
       m.forEach(function (x, i) {
         var n = U.isObj(x) && x.name ? String(x.name).trim().toLowerCase() : '';

@@ -18,7 +18,7 @@ Days 150 and 151 build on the bundles those four forges export. Their plan is ou
 
 ## The three stages
 
-1. Charter. Write the premise, magic, villain, party, chapters, endings, themes, canon, glossary, specs, and quotas, then pick a ruleset (Saga preset, Classic preset, or Custom). Locking the Charter needs zero errors. Amending it later bumps the version and shows which records are affected.
+1. Charter. Write the premise, magic, villain, starting party, chapters, endings, themes, canon, glossary, specs, and quotas, then pick a ruleset (Saga preset, Classic preset, or Custom). Locking the Charter needs zero errors. Amending it later bumps the version and shows which records are affected.
 2. Codex. Generate the record types that the locked ruleset calls for, for example Materia for the Saga preset or Class for the Classic preset. Regenerating after an amendment keeps your records and reports what changed.
 3. Rules. Author characters, abilities, items, equipment, enemies, families, gambits, troops, shops, weather, limits, and the Expected Party State. Fight your troops by hand in the Arena, then run the Simulator to see whether the balance matches the targets you set.
 
