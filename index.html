@@ -178,6 +178,37 @@ PASS 1 (2026-09-30, Opus): KIT:CORE and Shell. COMPLETE.
   Known deferrals: Pass 4b replaces the generic editors for equipment slot layout, gambits, troops, and enemies. Pass 5 builds
     the engine templates against FORMULA_LIB and the turn loop. The Charter validation for the ruleset section is unchanged.
 === END PASS 4a ===
+=== PASS 4b: RULES CONTENT (Sonnet), COMPLETE ===
+  Built: content editors inside the WS:RULES css and js fences only. ENGINE:BATTLE is untouched.
+  Editors: abilities and items (plain language summary, Create an effect ability from an item); equipment (SVG slot layout
+    builder: tap a slot then a second slot to toggle a link, Fewer/More slots 0 to 8, Clear links, links past the count pruned);
+    characters (stats by level table, inline Limit tree builder with Add existing, New limit here, reorder, remove, level order
+    warning); families and enemies (tier generator clones a family into tiers 2 to N with scaled stats clamped to stat max, scaled
+    level, gil, exp, ap, and a hue shift stored on the cloned family; enemy tools show effective affinity, a scale stats tool,
+    gambit link or create, and troops that use the enemy); gambits and boss strategies (rule and counter rows, condition, param,
+    target and ability pickers, plain language line, Never reached chip after an Always rule, up/down and drag reorder);
+    troops (Back row and Front row lanes, up to 8 members, move row, reorder, change, remove, gil/exp/ap totals, Broken chip);
+    shops (effective price sheet); Expected Party State table; Economy panel (view 'econ' in the Content rail).
+  Fill from curves: total EXP for the final level (default 50, editable) from the ruleset exp formula, spread across chapters by
+    cumulative target minutes; each chapter gets the highest level whose requirement fits. Confirms before overwriting levels above 1.
+  Economy: battles per minute (default 1) times average troop gil and AP per chapter (troops tagged to the chapter), cumulative
+    gil and AP against the cheapest stocked gear kit at the chapter target tier. Flags: notroops, noeps, notier, nogear,
+    unaffordable (error), unstocked, apshort. Chart.js line chart degrades to a table when unavailable.
+  Drafting: every content type supports Draft with Claude and Draft a Set (count and direction). Characters are seeded from
+    Charter party entries (Draft per member, Create blank). IDs are never minted by Claude.
+  Public API: WS.rules.content {slotLayoutOf, describeRule, describeCounter, generateTiers, planCurves, applyCurves, economy,
+    troopYield, shiftHex, ablSummary, chaptersOf, epsOfChapter, partyMembers, seedPrompt, shopEffective}. TYPE_CFG entries gain
+    hide (paths shown by a builder instead of the form) and listExtras hooks. Troop members are {enm, row}; slotLayout is
+    {count, links [[i,j]]}; Pass 5 reads these shapes.
+  Acceptance: all 18 rules and system types created from scratch and drafted (Draft a Set, 3 drafts, review, accept) against a
+    mocked Claude reply; troop referencing a deleted enemy reports BROKEN on members[i].enm; a character with a portrait id reports
+    FORWARD owed by forge 147; tier generation makes 2 extra families and 4 enemies; slot links toggle; Fill from curves gave
+    levels 23, 36, 50; economy flags an unaffordable tier 2 kit; 375px with no horizontal scroll and 44px targets in Night and
+    Parchment; syntax check, ASCII scan, forbidden API scan, backlink count 3, fence order. Fixed: hidden chips were shown because
+    of chip display rules (added a scoped [hidden] rule).
+  Known deferrals: Pass 5 builds the battle loop and gambit evaluation against these shapes. Arena and Simulator are still
+    placeholders. Pass 6 owns the README and final polish.
+=== END PASS 4b ===
 === END BUILD LOG ===
 -->
 <!doctype html>
@@ -696,6 +727,83 @@ details.cx-block > .cx-block-sum { padding: 0; }
 @media (max-width: 480px) {
   .rl-f.sm { flex: 1 1 90px; }
   .rl-ctrls { flex: 1 1 100%; justify-content: flex-end; margin-left: 0; }
+}
+/* Pass 4B content editors */
+.rl-summary { display: flex; flex-direction: column; gap: 8px; }
+.rl-sumline { line-height: 1.45; overflow-wrap: anywhere; }
+.rl-summary .section-h { margin: 0; }
+.rl-link { min-height: 44px; padding: 4px 10px; text-align: left; overflow-wrap: anywhere; }
+.rl-slotb, .rl-limb, .rl-gmb, .rl-trp { display: flex; flex-direction: column; gap: 10px; }
+.rl-slotb .section-h, .rl-limb .section-h, .rl-gmb .section-h, .rl-trp .section-h { margin: 8px 0 0; }
+.rl-slotcount { min-width: 90px; text-align: center; }
+.rl-slotsvg { display: block; width: min(100%, 360px); height: auto; align-self: center; touch-action: manipulation; }
+.rl-slot { cursor: pointer; outline: none; }
+.rl-slot circle { fill: var(--bg2); stroke: var(--line2); stroke-width: 3; }
+.rl-slot:hover circle { stroke: var(--accent); }
+.rl-slot:focus-visible circle { stroke: var(--accent); stroke-width: 6; }
+.rl-slot.sel circle { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 5; }
+.rl-slot text { fill: var(--ink); font-family: var(--font-ui); font-weight: 700; font-size: 18px; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+.rl-slot-bar { stroke: var(--accent); stroke-width: 10; stroke-linecap: round; fill: none; opacity: .85; }
+.rl-slot-bar.arc { stroke-width: 7; }
+.rl-linkchip { display: inline-flex; align-items: center; gap: 2px; }
+.rl-lcard { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg2); }
+.rl-lcard-main { flex: 1 1 200px; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.rl-lbadge { font-family: var(--font-display); font-size: .78rem; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
+.rl-ltitle { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
+.rl-lmeta { display: flex; flex-wrap: wrap; gap: 4px 6px; }
+.rl-grow { border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg2); padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.rl-grow.dragging { opacity: .5; }
+.rl-grow.dropping { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.rl-grow-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.rl-grow-head strong { flex: 1 1 auto; }
+.rl-grow-head .rl-ctrls { margin-left: 0; }
+.rl-grow-body { display: flex; flex-wrap: wrap; gap: 10px; }
+.rl-gline { flex: 1 1 100%; font-style: italic; color: var(--ink2); overflow-wrap: anywhere; }
+.rl-grip { width: 44px; height: 44px; flex: none; border-radius: var(--radius-sm); cursor: grab; border: 1px dashed var(--line2); background: radial-gradient(circle, var(--muted) 2px, transparent 2.5px) 0 0 / 11px 11px; }
+.rl-grip:active { cursor: grabbing; }
+.rl-lanes { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+.rl-lane { border: 1px dashed var(--line2); border-radius: var(--radius-sm); padding: 10px; display: flex; flex-direction: column; gap: 8px; background: var(--bg2); min-width: 0; }
+.rl-lane-h { display: flex; justify-content: space-between; align-items: center; font-family: var(--font-display); font-size: .82rem; letter-spacing: .08em; text-transform: uppercase; color: var(--ink2); }
+.rl-mcard { border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--panel); padding: 8px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.rl-mtop { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
+.rl-mctl { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.rl-tiergrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 10px 0; }
+.rl-tiergrid .rl-f { flex: initial; }
+.rl-pacing .rl-tools { align-items: flex-end; }
+.rl-egrid { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+.rl-ehead { display: none; }
+.rl-erow { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: flex-end; padding: 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg2); }
+.rl-echap { flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; min-width: 0; }
+.rl-noeps { flex: 1 1 120px; }
+.rl-erow .rl-f.sm { flex: 1 1 96px; }
+.ws-inner[data-ws=rules] [hidden] { display: none !important; }
+.rl-econ { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 10px; margin-bottom: 20px; }
+.rl-ecard { display: flex; flex-direction: column; gap: 8px; }
+.rl-ecard.bad { border-color: var(--danger); }
+.rl-ecard-h { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; justify-content: space-between; }
+.rl-kv { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 12px; }
+.rl-kv span { display: block; font-size: .78rem; color: var(--muted); }
+.rl-kv strong { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.rl-flags { display: flex; flex-direction: column; gap: 3px; }
+.rl-seedlist { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.rl-seed { display: flex; gap: 10px; align-items: flex-start; min-height: 44px; padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg2); cursor: pointer; }
+.rl-seed input { width: 22px; height: 22px; margin-top: 8px; flex: none; accent-color: var(--accent); }
+.rl-seed-t { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.rl-seedrow { flex-wrap: wrap; }
+.rl-seedinfo { cursor: default; }
+.rl-seedinfo:hover { background: transparent; }
+.rl-seedpast { flex: 1 1 100%; }
+.rl-seedacts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 4px; }
+.tbl .num { text-align: right; font-variant-numeric: tabular-nums; }
+@media (min-width: 900px) {
+  .rl-ehead, .rl-erow { display: grid; grid-template-columns: minmax(150px, 1.6fr) 96px 96px 120px 110px auto; gap: 8px; align-items: center; }
+  .rl-ehead { padding: 0 10px; font-size: .74rem; letter-spacing: .08em; text-transform: uppercase; color: var(--ink2); }
+  .rl-erow .rl-f > label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .rl-echap { flex: initial; }
+  .rl-noeps { grid-column: span 4; }
+}
+@media (max-width: 600px) {
+  .rl-lanes { grid-template-columns: minmax(0, 1fr); }
 }
 /* === WS:RULES CSS END === */
 /* === WS:ARENA CSS BEGIN === */
@@ -6237,11 +6345,13 @@ details.cx-block > .cx-block-sum { padding: 0; }
       if (!info || info.ns !== 'rules') return;
       content.push({ view: 'type:' + n, label: t.label || n, icon: 'scroll', type: n, order: t.group === 'living' ? 2 : 1 });
     });
+    content.push({ view: 'econ', label: 'Economy', icon: 'chart', order: 1.5 });
     content.sort(function (a, b) { return a.order - b.order || a.label.localeCompare(b.label); });
     return { sys: sys, content: content };
   }
   function viewExists(v) {
     if (!v) return false;
+    if (v === 'econ') return true;
     if (v.indexOf('type:') === 0) return !!typeByName(v.slice(5));
     var m = railModel();
     return m.sys.concat(m.content).some(function (x) { return x.view === v; });
@@ -6322,6 +6432,85 @@ details.cx-block > .cx-block-sum { padding: 0; }
     },
     Materia: {
       extras: function (box, rec, api) { materiaExtras(box, rec, api); }
+    },
+    Ability: {
+      init: function (rec) { rec.kind = 'attack'; rec.power = 10; rec.cost = { mp: 0, ap: 0 }; rec.targeting = { side: 'foe', scope: 'single' }; rec.chargeTicks = 0; rec.statusEffects = []; },
+      extras: function (box, rec, api) { abilityExtras(box, rec, api); },
+      draftPrompt: 'Draft an ability that fits the Charter magic system and tone. Choose a kind, an element from the declared elements when it fits, a power between 5 and 120, an MP cost, and targeting.'
+    },
+    Item: {
+      init: function (rec) { rec.kind = 'consumable'; rec.price = 0; },
+      extras: function (box, rec, api) { itemExtras(box, rec, api); },
+      draftPrompt: 'Draft an item that fits the Charter setting. Choose consumable, key, or material, a fair price in gil, and for a consumable the effect ability by its ID when one fits.'
+    },
+    Equipment: {
+      init: function (rec) { rec.slot = 'weapon'; rec.tier = 1; rec.price = 0; rec.stats = {}; rec.slotLayout = { count: 0, links: [] }; },
+      hide: ['slotLayout'],
+      extras: function (box, rec, api) { equipmentExtras(box, rec, api); },
+      draftPrompt: 'Draft a piece of equipment for a weapon, armor, or accessory slot. Give it a gear tier, a price, stat bonuses using only the declared stats, and a slot layout with a count of slots and links written as pairs of slot numbers counted from zero.'
+    },
+    Character: {
+      init: function (rec) {
+        var b = cur();
+        rec.weaponClass = '';
+        rec.statLeanings = statTable(b, function () { return 1; });
+        rec.baseStats = statTable(b, function (s) { return typeof s.min === 'number' ? s.min : 1; });
+        rec.growth = statTable(b, function () { return 0; });
+        rec.limitTree = []; rec.relationshipHooks = [];
+      },
+      hide: ['limitTree'],
+      extras: function (box, rec, api) { characterExtras(box, rec, api); },
+      listExtras: function (main) { characterListExtras(main); },
+      draftPrompt: 'Draft a playable character from a Charter party entry.'
+    },
+    Family: {
+      init: function (rec) {
+        var tx = rsOf().taxonomy, v0 = tx && Array.isArray(tx.values) ? tx.values[0] : '';
+        rec.type = U.isObj(v0) ? String(v0.key || '') : (v0 == null ? '' : String(v0));
+        rec.palette = { base: '#6d5a7a', accent: '#e4b363' }; rec.absorbsOwnType = false;
+      },
+      extras: function (box, rec, api) { familyExtras(box, rec, api); },
+      draftPrompt: 'Draft an enemy family. Choose its type from the taxonomy values and a base and accent color that suit it. Its affinity is computed from the type, so do not invent one.'
+    },
+    Enemy: {
+      init: function (rec) { var b = cur(); rec.tier = 1; rec.level = 1; rec.stats = statTable(b, function (s) { return typeof s.min === 'number' ? s.min : 1; }); rec.drops = []; rec.steal = []; rec.gil = 0; rec.exp = 0; rec.ap = 0; rec.isBoss = false; },
+      extras: function (box, rec, api) { enemyExtras(box, rec, api); },
+      draftPrompt: function (b) {
+        var st = statList(b).map(function (s) { return s.key + ' ' + (typeof s.min === 'number' ? s.min : 0) + ' to ' + (typeof s.max === 'number' ? s.max : 99); }).join(', ');
+        return 'Draft an enemy that belongs to one of the listed families, chosen by its ID. Keep stats inside these ranges: ' + st + '. Pick a level, and modest gil, EXP, and AP rewards that suit the level.';
+      }
+    },
+    Gambit: {
+      init: function (rec) { rec.rules = []; rec.counters = []; },
+      hide: ['rules', 'counters'],
+      extras: function (box, rec, api) { gambitBuilder(box, rec, api, 'Gambit'); },
+      draftPrompt: 'Draft a gambit set: two to four rules checked from the top, with the most urgent first and a fallback always rule last. Use only listed abilities and statuses. Condition parameters are a fraction such as 0.35, a whole number, or a status ID.'
+    },
+    BossStrategy: {
+      init: function (rec) { rec.text = ''; rec.rules = []; rec.counters = []; },
+      hide: ['rules', 'counters'],
+      extras: function (box, rec, api) { gambitBuilder(box, rec, api, 'BossStrategy'); },
+      draftPrompt: 'Draft a boss strategy for a listed boss enemy, chosen by its ID. Write the plan in words, then rules and counters that carry it out using only listed abilities.'
+    },
+    Troop: {
+      init: function (rec) { rec.members = []; rec.flags = { noEscape: false, preemptiveChance: 0 }; },
+      hide: ['members'],
+      extras: function (box, rec, api) { troopBuilder(box, rec, api); },
+      draftPrompt: 'Draft a troop of one to four listed enemies with a row for each (front or back), tied to a listed chapter when one fits.'
+    },
+    Shop: {
+      init: function (rec) { rec.inventory = []; },
+      extras: function (box, rec, api) { shopExtras(box, rec, api); },
+      draftPrompt: 'Draft a shop with a small inventory of listed items and equipment, and the chapter it opens in when one fits. Only use price overrides when a price should differ from the base.'
+    },
+    Limit: {
+      init: function (rec) { rec.level = 1; rec.unlock = { uses: 0 }; },
+      extras: function (box, rec, api) { limitExtras(box, rec, api); },
+      draftPrompt: 'Draft a limit break with a level from one to four, an unlock by uses or kills, and the action ability by its ID.'
+    },
+    ExpectedPartyState: {
+      init: function (rec) { rec.targetLevel = 1; rec.gearTier = 1; rec.gil = 0; rec.targetWinRate = 80; },
+      draftPrompt: 'Draft an Expected Party State row for a listed chapter, choosing the chapter by its ID. Give a target level, gear tier, gil on hand, and a target win rate near 80 percent.'
     }
   };
 
@@ -6415,6 +6604,1220 @@ details.cx-block > .cx-block-sum { padding: 0; }
     box.appendChild(tools);
   }
 
+  // ================================================================ Pass 4B: content editors
+  // Helpers shared by the content editors below. Everything writes straight into the record, then calls api.changed.
+  function nameOf(id) { var e = id ? Kit.index().byId[id] : null; return e ? e.name : (id || ''); }
+  function recOf(id) { return id ? Kit.records.get(id) : null; }
+  function missingId(id) { return !!id && !Kit.index().byId[id]; }
+  function num(v) { v = Number(v); return isFinite(v) ? v : 0; }
+  function clampInt(v, lo, hi, dflt) { v = Math.round(Number(v)); if (!isFinite(v)) v = dflt; return Math.max(lo, Math.min(hi, v)); }
+  function vocab(name) { return (window.WS.codex && window.WS.codex[name]) || []; }
+  function vocabLabel(list, key) { var l = list || []; for (var i = 0; i < l.length; i++) { if (l[i].key === key) return l[i].label; } return key || ''; }
+  function vocabOptions(name) { return vocab(name).map(function (k) { return { value: k.key, label: k.label }; }); }
+  function statList(b) { var st = rsOf(b).stats; return (Array.isArray(st) ? st : []).filter(function (s) { return U.isObj(s) && s.key; }); }
+  function statTable(b, fn) { var o = {}; statList(b).forEach(function (s) { o[s.key] = fn(s); }); return o; }
+  function elemLabel(k) { var l = elemList(rsOf()).filter(function (e) { return e.key === k; })[0]; return l ? (l.label || l.key) : k; }
+  function pathHit(path, prefixes) {
+    path = String(path || '');
+    return prefixes.some(function (p) { return path === p || path.indexOf(p + '.') === 0 || path.indexOf(p + '[') === 0; });
+  }
+  // A message box that shows the validator's findings for the fields a builder owns.
+  function issueBox(typeName, rec, prefixes) {
+    var box = el('div', 'rl-msgs');
+    box.paint = function () {
+      U.clear(box);
+      Kit.validate.record(typeName, rec).forEach(function (it) {
+        if (!pathHit(it.fieldPath, prefixes)) return;
+        box.appendChild(el('div', 'msg msg-' + it.level, esc(it.message)));
+      });
+    };
+    box.paint();
+    return box;
+  }
+  function refBtnHtml(id) {
+    if (!id) return '<span class="ref-empty">None. Tap to choose.</span>';
+    return '<span class="ref-name">' + esc(nameOf(id)) + '</span><code class="id">' + esc(id) + '</code>' + (missingId(id) ? '<span class="chip chip-broken">Broken</span>' : '');
+  }
+  // A ref picker button. get returns the current id, set stores the new one (null clears).
+  function refButton(prefix, title, get, set, label) {
+    var b = el('button', 'ref-btn', refBtnHtml(get())); b.type = 'button';
+    if (label) b.setAttribute('aria-label', label);
+    b.addEventListener('click', function () {
+      Kit.ui.pickRef({ prefix: prefix, title: title, current: get() }).then(function (v) {
+        if (v === undefined) return;
+        set(v || null);
+        b.innerHTML = refBtnHtml(get());
+      });
+    });
+    return b;
+  }
+  function openRecord(id) {
+    var tn = typeOfRecordId(id);
+    if (!tn) return;
+    state.view = 'type:' + tn; state.editing = id; repaint();
+  }
+  function recLink(id, text) {
+    var b = el('button', 'btn btn-ghost rl-link', esc(text || nameOf(id))); b.type = 'button';
+    b.addEventListener('click', function () { openRecord(id); });
+    return b;
+  }
+  function swapIn(arr, i, j) { if (i < 0 || j < 0 || i >= arr.length || j >= arr.length) return false; var t = arr[i]; arr[i] = arr[j]; arr[j] = t; return true; }
+  // Native drag and drop for sortable rows. Buttons remain the touch and keyboard route.
+  function enableDrag(row, grip, kind, arr, i, done) {
+    grip.draggable = true;
+    grip.addEventListener('dragstart', function (e) {
+      try { e.dataTransfer.setData('text/plain', kind + ':' + i); e.dataTransfer.effectAllowed = 'move'; } catch (x) { /* older browsers */ }
+      row.classList.add('dragging');
+    });
+    grip.addEventListener('dragend', function () { row.classList.remove('dragging'); });
+    row.addEventListener('dragover', function (e) { e.preventDefault(); row.classList.add('dropping'); });
+    row.addEventListener('dragleave', function () { row.classList.remove('dropping'); });
+    row.addEventListener('drop', function (e) {
+      e.preventDefault(); row.classList.remove('dropping');
+      var raw = ''; try { raw = e.dataTransfer.getData('text/plain'); } catch (x) { raw = ''; }
+      var m = /^(\w+):(\d+)$/.exec(raw);
+      if (!m || m[1] !== kind) return;
+      var from = Number(m[2]);
+      if (from === i || from >= arr.length) return;
+      var item = arr.splice(from, 1)[0];
+      arr.splice(i, 0, item);
+      done();
+    });
+  }
+  var SVGNS = 'http://www.w3.org/2000/svg';
+  function svgEl(tag, attrs, cls) {
+    var n = document.createElementNS(SVGNS, tag);
+    Object.keys(attrs || {}).forEach(function (k) { n.setAttribute(k, attrs[k]); });
+    if (cls) n.setAttribute('class', cls);
+    return n;
+  }
+
+  // ---------------------------------------------------------------- abilities and items
+  var SIDE_NOUN = { foe: ['foe', 'foes'], ally: ['ally', 'allies'], any: ['target', 'targets'] };
+  function targetPhrase(t) {
+    t = U.isObj(t) ? t : {};
+    if (t.side === 'self') return 'the user';
+    var n = SIDE_NOUN[t.side] || ['target', 'targets'];
+    switch (t.scope) {
+      case 'all': return 'all ' + n[1];
+      case 'row': return 'a row of ' + n[1];
+      case 'random': return 'a random ' + n[0];
+      default: return 'one ' + n[0];
+    }
+  }
+  function ablSummary(rec) {
+    var kind = vocabLabel(vocab('ABL_KINDS'), rec.kind) || 'Ability';
+    var s = kind + (rec.element ? ', ' + elemLabel(rec.element) : '') + '. Power ' + num(rec.power) + '. ';
+    var c = U.isObj(rec.cost) ? rec.cost : {}, cost = [];
+    if (num(c.mp)) cost.push(num(c.mp) + ' MP');
+    if (num(c.ap)) cost.push(num(c.ap) + ' AP');
+    if (c.item) cost.push(nameOf(c.item));
+    s += cost.length ? 'Costs ' + cost.join(' and ') + '. ' : 'Free to use. ';
+    s += 'Targets ' + targetPhrase(rec.targeting) + '. ';
+    s += num(rec.chargeTicks) ? 'Charges for ' + num(rec.chargeTicks) + ' ticks.' : 'No charge time.';
+    var n = Array.isArray(rec.statusEffects) ? rec.statusEffects.length : 0;
+    if (n) s += ' Can inflict ' + n + ' status' + (n === 1 ? '' : 'es') + '.';
+    return s;
+  }
+  var ABL_ROLE = { attack: 'phys', magic: 'mag', heal: 'heal', summon: 'mag', enemy: 'phys', limit: 'phys' };
+  function ablSample(rec) {
+    var role = ABL_ROLE[rec.kind];
+    if (!role) return null;
+    var fid = rec.formula && recOf(rec.formula) ? rec.formula : WSX.roleId(role);
+    if (!fid) return 'The ruleset has no ' + role + ' formula, so there is no sample.';
+    var sc = sampleScope(cur());
+    sc.power = num(rec.power);
+    try {
+      var v = WSX.evalFormula(fid, sc);
+      return 'Sample at level ' + sampleState.level + ' with power ' + sc.power + ': about ' + fmtNum(v) + (rec.kind === 'heal' ? ' HP restored.' : ' damage.') + ' Sample stats come from the Formulas preview.';
+    } catch (e) { return 'Sample not available: ' + e.message; }
+  }
+  function abilityExtras(box, rec, api) {
+    var card = el('div', 'card rl-summary');
+    box.appendChild(card);
+    function paint() {
+      var samp = ablSample(rec);
+      card.innerHTML = '<div class="rl-sumline">' + esc(ablSummary(rec)) + '</div>' + (samp ? '<div class="muted rl-note">' + esc(samp) + '</div>' : '');
+    }
+    paint(); api.onLive(paint);
+  }
+  function itemExtras(box, rec, api) {
+    var card = el('div', 'card rl-summary');
+    box.appendChild(card);
+    function paint() {
+      U.clear(card);
+      var txt;
+      if (rec.kind === 'consumable') txt = rec.effect ? 'Consumable. Using it fires ' + nameOf(rec.effect) + '.' : 'Consumable with no effect yet.';
+      else if (rec.kind === 'key') txt = 'Key item. It stays in the bag and is not normally sold.';
+      else txt = 'Crafting material.';
+      if (num(rec.price)) txt += ' Base price ' + num(rec.price) + ' gil.';
+      card.appendChild(el('div', 'rl-sumline', esc(txt)));
+      if (rec.kind === 'key' && num(rec.price) > 0) card.appendChild(el('div', 'msg msg-warning', 'A key item with a price could end up for sale. Check the shops.'));
+      if (rec.kind === 'consumable' && !rec.effect) {
+        var row = el('div', 'btn-row');
+        row.appendChild(button('Create an effect ability', 'plus', '', function () {
+          var name = String(rec.name || 'Item') + ' effect';
+          var abl = { id: Kit.ids.mint('abl_', name), name: name, charterVersion: cur().charter.version || 0 };
+          typeDefaults('Ability', abl);
+          abl.kind = 'heal'; abl.targeting = { side: 'ally', scope: 'single' }; abl.power = 50;
+          Kit.records.put(abl); rec.effect = abl.id;
+          Kit.bundle.touch('rules-new'); api.changed(true);
+          Kit.ui.toast('Created ' + name + ' and linked it.', 'ok');
+        }));
+        card.appendChild(row);
+      }
+    }
+    paint(); api.onLive(paint);
+  }
+
+  // ---------------------------------------------------------------- equipment: visual slot layout builder
+  function slotLayoutOf(rec) {
+    if (!U.isObj(rec.slotLayout)) rec.slotLayout = {};
+    var L = rec.slotLayout;
+    L.count = clampInt(L.count, 0, 8, 0);
+    var seen = {}, out = [];
+    (Array.isArray(L.links) ? L.links : []).forEach(function (p) {
+      if (!Array.isArray(p) || p.length !== 2) return;
+      var i = Math.round(Number(p[0])), j = Math.round(Number(p[1]));
+      if (!isFinite(i) || !isFinite(j) || i === j) return;
+      if (i > j) { var t = i; i = j; j = t; }
+      var k = i + ':' + j;
+      if (seen[k]) return;
+      seen[k] = 1; out.push([i, j]);
+    });
+    L.links = out;
+    return L;
+  }
+  // Slots sit in rows of four inside a 256 unit wide drawing, so the picture scales to any screen.
+  function slotPos(i, count) {
+    var r = Math.floor(i / 4), c = i % 4, inRow = Math.min(4, count - r * 4);
+    return { x: (256 - inRow * 64) / 2 + 32 + c * 64, y: 46 + r * 72 };
+  }
+  function slotBuilder(box, rec, api) {
+    var host = el('div', 'rl-slotb'); host.setAttribute('data-bpath', 'slotLayout');
+    box.appendChild(host);
+    var sel = -1, issues = issueBox('Equipment', rec, ['slotLayout']);
+    function setCount(n) {
+      var L = slotLayoutOf(rec), before = L.links.length;
+      n = clampInt(n, 0, 8, 0);
+      L.count = n;
+      L.links = L.links.filter(function (p) { return p[0] < n && p[1] < n; });
+      if (L.links.length < before) Kit.ui.toast('Removed ' + (before - L.links.length) + ' link' + (before - L.links.length === 1 ? '' : 's') + ' that pointed past the last slot.', 'warn');
+      if (sel >= n) sel = -1;
+      api.changed(false); paint();
+    }
+    function toggleLink(i, j) {
+      var L = slotLayoutOf(rec);
+      if (i > j) { var t = i; i = j; j = t; }
+      var at = -1;
+      L.links.forEach(function (p, k) { if (p[0] === i && p[1] === j) at = k; });
+      if (at >= 0) L.links.splice(at, 1); else L.links.push([i, j]);
+      L.links.sort(function (a, b) { return a[0] - b[0] || a[1] - b[1]; });
+    }
+    function pick(i) {
+      if (sel < 0) { sel = i; paint(); return; }
+      if (sel === i) { sel = -1; paint(); return; }
+      toggleLink(sel, i); sel = -1; api.changed(false); paint();
+    }
+    function paint() {
+      U.clear(host);
+      var L = slotLayoutOf(rec);
+      host.appendChild(el('h3', 'section-h', 'Slot layout'));
+      host.appendChild(el('p', 'muted rl-note', 'Choose how many slots this piece has. Then tap one slot and a second slot to link or unlink them. Linked slots are joined by a bar.'));
+      var ctl = el('div', 'rl-tools');
+      var less = button('Fewer slots', 'down', 'btn-ghost', function () { setCount(L.count - 1); });
+      var more = button('More slots', 'plus', 'btn-ghost', function () { setCount(L.count + 1); });
+      less.disabled = L.count <= 0; more.disabled = L.count >= 8;
+      ctl.appendChild(less);
+      ctl.appendChild(el('span', 'rl-slotcount', '<strong>' + L.count + '</strong> slot' + (L.count === 1 ? '' : 's')));
+      ctl.appendChild(more);
+      var clr = button('Clear links', 'x', 'btn-ghost', function () { L.links = []; sel = -1; api.changed(false); paint(); });
+      clr.disabled = !L.links.length;
+      ctl.appendChild(clr);
+      host.appendChild(ctl);
+      if (L.count > 0) {
+        var rows = Math.ceil(L.count / 4), H = rows * 72 + 22;
+        var svg = svgEl('svg', { viewBox: '0 0 256 ' + H, role: 'group', 'aria-label': 'Slot layout with ' + L.count + ' slots and ' + L.links.length + ' links' }, 'rl-slotsvg');
+        L.links.forEach(function (p) {
+          if (p[0] >= L.count || p[1] >= L.count) return;
+          var a = slotPos(p[0], L.count), c = slotPos(p[1], L.count);
+          var sameRow = Math.floor(p[0] / 4) === Math.floor(p[1] / 4), adj = sameRow && p[1] - p[0] === 1;
+          if (sameRow && !adj) svg.appendChild(svgEl('path', { d: 'M' + a.x + ' ' + a.y + ' Q' + ((a.x + c.x) / 2) + ' ' + (a.y - 46) + ' ' + c.x + ' ' + c.y }, 'rl-slot-bar arc'));
+          else svg.appendChild(svgEl('line', { x1: a.x, y1: a.y, x2: c.x, y2: c.y }, 'rl-slot-bar'));
+        });
+        for (var i = 0; i < L.count; i++) (function (idx) {
+          var pos = slotPos(idx, L.count);
+          var g = svgEl('g', { tabindex: '0', role: 'button', 'aria-pressed': sel === idx ? 'true' : 'false', 'aria-label': 'Slot ' + (idx + 1) + (sel === idx ? ', selected. Choose a second slot to link.' : '') }, 'rl-slot' + (sel === idx ? ' sel' : ''));
+          g.appendChild(svgEl('circle', { cx: pos.x, cy: pos.y, r: 22 }));
+          var tx = svgEl('text', { x: pos.x, y: pos.y }); tx.textContent = String(idx + 1);
+          g.appendChild(tx);
+          g.addEventListener('click', function () { pick(idx); });
+          g.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(idx); } });
+          svg.appendChild(g);
+        })(i);
+        host.appendChild(svg);
+      } else host.appendChild(el('div', 'empty-line', 'No slots yet. Use More slots to add the first one.'));
+      if (L.links.length) {
+        var chips = el('div', 'rl-chipbar');
+        L.links.forEach(function (p, k) {
+          var bad = p[0] >= L.count || p[1] >= L.count;
+          var chip = el('span', 'chip ' + (bad ? 'chip-warning' : 'chip-accent'), 'Slot ' + (p[0] + 1) + ' linked to slot ' + (p[1] + 1) + (bad ? ' (past the last slot)' : ''));
+          var rm = iconButton('x', 'Remove link between slot ' + (p[0] + 1) + ' and slot ' + (p[1] + 1), function () { L.links.splice(k, 1); api.changed(false); paint(); });
+          var wrap = el('span', 'rl-linkchip'); wrap.appendChild(chip); wrap.appendChild(rm);
+          chips.appendChild(wrap);
+        });
+        host.appendChild(chips);
+      }
+      issues.paint();
+      host.appendChild(issues);
+    }
+    paint();
+  }
+  function equipmentExtras(box, rec, api) {
+    var card = el('div', 'card rl-summary');
+    box.appendChild(card);
+    function paint() {
+      var bits = [cap1(rec.slot || 'gear')];
+      if (rec.slot === 'weapon' && rec.weaponClass) bits.push(rec.weaponClass + ' class');
+      if (rec.tier) bits.push('tier ' + rec.tier);
+      if (num(rec.price)) bits.push(num(rec.price) + ' gil');
+      var bon = [], st = U.isObj(rec.stats) ? rec.stats : {};
+      Object.keys(st).forEach(function (k) { if (num(st[k])) bon.push(k + ' ' + (num(st[k]) > 0 ? '+' : '') + num(st[k])); });
+      var L = U.isObj(rec.slotLayout) ? rec.slotLayout : {};
+      card.innerHTML = '<div class="rl-sumline">' + esc(bits.join(', ') + '.') + (bon.length ? ' Bonuses: ' + esc(bon.join(', ')) + '.' : '') + ' ' + esc((L.count || 0) + ' slot' + (L.count === 1 ? '' : 's') + ', ' + ((L.links || []).length) + ' link' + ((L.links || []).length === 1 ? '' : 's') + '.') + '</div>';
+    }
+    paint(); api.onLive(paint);
+    slotBuilder(box, rec, api);
+  }
+
+  // ---------------------------------------------------------------- characters: limit tree builder and previews
+  function partyMembers(b) {
+    var s = b.charter && b.charter.sections, p = s && s.party;
+    return p && Array.isArray(p.members) ? p.members.filter(function (m) { return U.isObj(m) && String(m.name || '').trim(); }) : [];
+  }
+  function chrByName(name) {
+    name = String(name || '').trim().toLowerCase();
+    return Kit.records.list('chr_').filter(function (c) { return String(c.name || '').trim().toLowerCase() === name; })[0] || null;
+  }
+  function unlockText(lim) {
+    var u = U.isObj(lim.unlock) ? lim.unlock : {};
+    if (num(u.uses) > 0) return 'after ' + num(u.uses) + ' uses of the previous limit';
+    if (num(u.kills) > 0) return 'after ' + num(u.kills) + ' kills';
+    return 'available at once';
+  }
+  function limitBuilder(box, rec, api) {
+    var host = el('div', 'rl-limb'); host.setAttribute('data-bpath', 'limitTree');
+    box.appendChild(host);
+    var issues = issueBox('Character', rec, ['limitTree']);
+    function tree() { if (!Array.isArray(rec.limitTree)) rec.limitTree = []; return rec.limitTree; }
+    function commit() { api.changed(false); paint(); }
+    function addExisting() {
+      Kit.ui.pickRef({ prefix: 'lim_', title: 'Add a limit break to ' + (rec.name || 'this character') }).then(function (id) {
+        if (!id) return;
+        if (tree().indexOf(id) >= 0) { Kit.ui.toast('That limit is already in the tree.', 'warn'); return; }
+        tree().push(id); commit();
+      });
+    }
+    function addNew() {
+      if (tree().length >= 4) { Kit.ui.toast('A limit tree holds at most four levels.', 'warn'); return; }
+      askName('New limit break', '').then(function (n) {
+        if (n == null) return;
+        return Kit.ui.pickRef({ prefix: 'abl_', title: 'Choose the limit action (optional)' }).then(function (abl) {
+          var level = Math.min(4, tree().length + 1);
+          var lim = { id: Kit.ids.mint('lim_', n.trim()), name: n.trim(), charterVersion: cur().charter.version || 0 };
+          typeDefaults('Limit', lim);
+          lim.level = level; lim.unlock = level > 1 ? { uses: 3 } : { uses: 0 };
+          lim.action = abl || null;
+          Kit.records.put(lim); tree().push(lim.id);
+          Kit.bundle.touch('rules-new'); commit();
+        });
+      });
+    }
+    function paint() {
+      U.clear(host);
+      host.appendChild(el('h3', 'section-h', 'Limit tree'));
+      host.appendChild(el('p', 'muted rl-note', 'Limit breaks in unlock order. The gauge fills as this character takes damage, and each level opens after the uses or kills you set on the limit.'));
+      var list = tree();
+      if (!list.length) host.appendChild(el('div', 'empty-line', 'No limit breaks yet. Add an existing one, or create a new one here.'));
+      var prev = 0, ascending = true;
+      list.forEach(function (id, i) {
+        var lim = recOf(id), card = el('div', 'rl-lcard');
+        var main = el('div', 'rl-lcard-main');
+        main.appendChild(el('span', 'rl-lbadge', 'Limit ' + (i + 1)));
+        var title = el('div', 'rl-ltitle');
+        title.appendChild(recLink(id, lim ? lim.name : id));
+        if (!lim) title.appendChild(el('span', 'chip chip-broken', 'Broken'));
+        main.appendChild(title);
+        if (lim) {
+          var meta = el('div', 'rl-lmeta');
+          meta.innerHTML = '<span class="chip chip-muted">Level ' + esc(lim.level == null ? '?' : lim.level) + '</span><span class="chip chip-muted">' + esc(unlockText(lim)) + '</span>' +
+            '<span class="chip ' + (lim.action ? (missingId(lim.action) ? 'chip-broken' : 'chip-accent') : 'chip-warning') + '">' + esc(lim.action ? nameOf(lim.action) : 'No action yet') + '</span>';
+          main.appendChild(meta);
+          if (num(lim.level) < prev) ascending = false;
+          prev = num(lim.level);
+        }
+        card.appendChild(main);
+        var ctrls = el('div', 'rl-ctrls');
+        var up = iconButton('up', 'Move limit ' + (i + 1) + ' up', function () { if (swapIn(list, i, i - 1)) commit(); });
+        var dn = iconButton('down', 'Move limit ' + (i + 1) + ' down', function () { if (swapIn(list, i, i + 1)) commit(); });
+        up.disabled = i === 0; dn.disabled = i === list.length - 1;
+        ctrls.appendChild(up); ctrls.appendChild(dn);
+        ctrls.appendChild(iconButton('trash', 'Remove limit ' + (i + 1) + ' from the tree', function () { list.splice(i, 1); commit(); }, 'btn-danger'));
+        card.appendChild(ctrls);
+        host.appendChild(card);
+      });
+      if (!ascending) host.appendChild(el('div', 'msg msg-warning', 'Limit levels should rise down the list. Reorder the limits or change a level.'));
+      var bar = el('div', 'btn-row');
+      bar.appendChild(button('Add existing limit', 'plus', '', addExisting));
+      bar.appendChild(button('New limit here', 'spark', '', addNew));
+      host.appendChild(bar);
+      issues.paint();
+      host.appendChild(issues);
+    }
+    paint();
+  }
+  function characterExtras(box, rec, api) {
+    var b = cur();
+    var seed = el('div', 'card rl-summary');
+    box.appendChild(seed);
+    var m = partyMembers(b).filter(function (p) { return String(p.name).trim().toLowerCase() === String(rec.name || '').trim().toLowerCase(); })[0];
+    if (m) seed.innerHTML = '<div class="rl-sumline"><strong>Charter party entry.</strong> ' + esc(m.past || 'No past written yet.') + '</div>';
+    else seed.innerHTML = '<div class="muted rl-note">No Charter party entry has this name, so this character is not tied to the party list.</div>';
+    // Stats by level, from the base stats plus growth per level.
+    var prevBox = el('div', 'rl-block');
+    box.appendChild(prevBox);
+    function paintStats() {
+      U.clear(prevBox);
+      prevBox.appendChild(el('h3', 'section-h', 'Stats by level'));
+      var stats = statList(cur());
+      if (!stats.length) { prevBox.appendChild(el('div', 'empty-line', 'Declare stats in the Charter first.')); return; }
+      var levels = [1, 10, 25, 50, 99];
+      var t = el('table', 'tbl');
+      var head = '<thead><tr><th scope="col">Stat</th>' + levels.map(function (l) { return '<th scope="col" class="num">Lv ' + l + '</th>'; }).join('') + '</tr></thead>';
+      var rows = stats.map(function (s) {
+        var base = num(rec.baseStats && rec.baseStats[s.key]), gr = num(rec.growth && rec.growth[s.key]);
+        return '<tr><th scope="row">' + esc(s.label || s.key) + '</th>' + levels.map(function (l) {
+          var v = Math.round(base + gr * (l - 1));
+          if (typeof s.max === 'number') v = Math.min(v, s.max);
+          return '<td class="num">' + v + '</td>';
+        }).join('') + '</tr>';
+      }).join('');
+      t.innerHTML = head + '<tbody>' + rows + '</tbody>';
+      var w = el('div', 'tbl-wrap'); w.appendChild(t); prevBox.appendChild(w);
+      prevBox.appendChild(el('p', 'muted rl-note', 'Base stats plus growth per level, capped at each stat maximum.'));
+    }
+    paintStats(); api.onLive(paintStats);
+    limitBuilder(box, rec, api);
+  }
+  function limitExtras(box, rec, api) {
+    var users = Kit.records.list('chr_').filter(function (c) { return Array.isArray(c.limitTree) && c.limitTree.indexOf(rec.id) >= 0; });
+    var card = el('div', 'card rl-summary');
+    card.appendChild(el('div', 'rl-sumline', esc(unlockText(rec).replace(/^./, function (c) { return c.toUpperCase(); }) + '. Fires ' + (rec.action ? nameOf(rec.action) : 'no action yet') + '.')));
+    var row = el('div', 'rl-chipbar');
+    if (!users.length) row.appendChild(el('span', 'muted rl-note', 'No character has this limit in a tree yet.'));
+    users.forEach(function (c) { row.appendChild(recLink(c.id, c.name)); });
+    card.appendChild(row);
+    box.appendChild(card);
+    void api;
+  }
+
+
+  // ---------------------------------------------------------------- families: tier generator, enemies
+  function hexToHsl(hex) {
+    var m = /^#?([0-9a-f]{6})$/i.exec(String(hex || '').trim());
+    if (!m) return null;
+    var n = parseInt(m[1], 16), r = ((n >> 16) & 255) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
+    var mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, h = 0, s = 0, d = mx - mn;
+    if (d) {
+      s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+      if (mx === r) h = (g - b) / d + (g < b ? 6 : 0);
+      else if (mx === g) h = (b - r) / d + 2;
+      else h = (r - g) / d + 4;
+      h *= 60;
+    }
+    return { h: h, s: s, l: l };
+  }
+  function hslToHex(h, s, l) {
+    h = ((h % 360) + 360) % 360;
+    var c = (1 - Math.abs(2 * l - 1)) * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = l - c / 2, r = 0, g = 0, b = 0;
+    if (h < 60) { r = c; g = x; } else if (h < 120) { r = x; g = c; } else if (h < 180) { g = c; b = x; }
+    else if (h < 240) { g = x; b = c; } else if (h < 300) { r = x; b = c; } else { r = c; b = x; }
+    function hx(v) { var t = Math.round((v + m) * 255).toString(16); return t.length < 2 ? '0' + t : t; }
+    return '#' + hx(r) + hx(g) + hx(b);
+  }
+  function shiftHex(hex, deg) { var hsl = hexToHsl(hex); return hsl ? hslToHex(hsl.h + deg, hsl.s, hsl.l) : hex; }
+  function tierBase(name) { return String(name || '').replace(/ T\d+$/, ''); }
+
+  // Clones a family, and every enemy in it, into tiers 2 to N. Each tier family gets a shifted palette, and each tier
+  // enemy gets scaled stats, level, and rewards. The originals are never changed apart from a missing tier number.
+  function generateTiers(famId, o) {
+    o = o || {};
+    var b = cur(), fam = recOf(famId);
+    if (!fam || Kit.ids.prefixOf(famId) !== 'fam_') throw new Error('Choose an enemy family first.');
+    var T = clampInt(o.tiers, 2, 9, 3);
+    var scale = num(o.scale) > 0 ? num(o.scale) : 1.5;
+    var rew = num(o.rewardScale) > 0 ? num(o.rewardScale) : scale;
+    var lvStep = clampInt(o.levelStep, 0, 30, 8);
+    var shift = isFinite(Number(o.shift)) && o.shift !== '' && o.shift != null ? Number(o.shift) : 30;
+    var maxOf = {};
+    statList(b).forEach(function (s) { maxOf[s.key] = typeof s.max === 'number' ? s.max : 999999; });
+    var srcs = Kit.records.list('enm_').filter(function (e) { return e.family === famId; });
+    if (!srcs.length) throw new Error('This family has no enemies to clone yet. Add an enemy first.');
+    srcs.forEach(function (e) { if (!e.tier) e.tier = 1; });
+    var out = { families: [], enemies: [] }, version = b.charter.version || 0, fbase = tierBase(fam.name);
+    for (var k = 2; k <= T; k++) (function (k) {
+      var f = U.clone(fam);
+      f.name = fbase + ' T' + k; f.id = Kit.ids.mint('fam_', f.name); f.charterVersion = version;
+      if (U.isObj(f.palette)) f.palette = { base: shiftHex(f.palette.base, shift * (k - 1)), accent: shiftHex(f.palette.accent, shift * (k - 1)) };
+      if (window.WS.codex && window.WS.codex.defaultAffinity) f.defaultAffinity = window.WS.codex.defaultAffinity(b, f.type, !!f.absorbsOwnType);
+      Kit.records.put(f); out.families.push(f.id);
+      srcs.forEach(function (e) {
+        var st = num(e.tier) || 1;
+        if (k <= st) return;
+        var pw = k - st, c = U.clone(e);
+        c.name = tierBase(e.name) + ' T' + k; c.id = Kit.ids.mint('enm_', c.name); c.charterVersion = version;
+        c.family = f.id; c.tier = k;
+        c.level = clampInt(num(e.level || 1) + lvStep * pw, 1, 99, 1);
+        if (U.isObj(e.stats)) {
+          c.stats = {};
+          Object.keys(e.stats).forEach(function (sk) {
+            var v = Math.round(num(e.stats[sk]) * Math.pow(scale, pw));
+            c.stats[sk] = Math.max(0, Math.min(v, maxOf[sk] != null ? maxOf[sk] : 999999));
+          });
+        }
+        ['gil', 'exp', 'ap'].forEach(function (rk) { if (e[rk] != null) c[rk] = Math.max(0, Math.round(num(e[rk]) * Math.pow(rew, pw))); });
+        Kit.records.put(c); out.enemies.push(c.id);
+      });
+    })(k);
+    Kit.index.invalidate(); Kit.bundle.touch('rules-tiers');
+    return out;
+  }
+  function tierDialog(fam, api) {
+    var src = Kit.records.list('enm_').filter(function (e) { return e.family === fam.id; });
+    var ins = {}, note;
+    function val(k) { return ins[k] ? ins[k].value : ''; }
+    function preview() {
+      var T = clampInt(val('tiers'), 2, 9, 3), n = 0;
+      for (var k = 2; k <= T; k++) src.forEach(function (e) { if (k > (num(e.tier) || 1)) n++; });
+      note.textContent = 'This creates ' + (T - 1) + ' famil' + (T - 1 === 1 ? 'y' : 'ies') + ' and ' + n + ' enem' + (n === 1 ? 'y' : 'ies') + '.';
+    }
+    Kit.ui.dialog({
+      title: 'Generate tiers for ' + (fam.name || fam.id),
+      body: function (body) {
+        if (!src.length) { body.appendChild(el('p', 'msg msg-warning', 'This family has no enemies yet. Add an enemy to it first, then generate tiers.')); return; }
+        body.appendChild(el('p', 'muted', 'Clones this family and its ' + src.length + ' enemy record' + (src.length === 1 ? '' : 's') + ' into higher tiers. Each tier gets its own family with a shifted palette. Its enemies get scaled stats, level, and rewards. The originals stay as they are.'));
+        var defs = [
+          ['tiers', 'Tiers in total', 3, { min: 2, max: 9, step: 1 }],
+          ['scale', 'Stat scale per tier', 1.5, { min: 1.05, max: 4, step: 0.05 }],
+          ['levelStep', 'Levels added per tier', 8, { min: 0, max: 30, step: 1 }],
+          ['rewardScale', 'Reward scale per tier', 1.5, { min: 1, max: 4, step: 0.05 }],
+          ['shift', 'Palette shift per tier (degrees)', 30, { min: 0, max: 180, step: 5 }]
+        ];
+        var grid = el('div', 'rl-tiergrid');
+        defs.forEach(function (d) {
+          var inp = mkInput({ type: 'number', step: d[3].step, min: d[3].min, max: d[3].max, value: d[2], label: d[1], onInput: preview });
+          ins[d[0]] = inp;
+          grid.appendChild(fieldBox(d[1], inp));
+        });
+        body.appendChild(grid);
+        note = el('p', 'rl-sumline'); body.appendChild(note);
+        preview();
+      },
+      actions: src.length ? [{ label: 'Cancel', kind: 'ghost', value: null }, { label: 'Generate', kind: 'primary', value: 'go' }] : [{ label: 'Close', kind: 'ghost', value: null }],
+      onResult: function (v) {
+        if (v !== 'go') return;
+        try {
+          var r = generateTiers(fam.id, { tiers: val('tiers'), scale: val('scale'), levelStep: val('levelStep'), rewardScale: val('rewardScale'), shift: val('shift') });
+          Kit.ui.toast('Created ' + r.families.length + ' families and ' + r.enemies.length + ' enemies.', 'ok');
+          api.changed(true);
+        } catch (e) { Kit.ui.toast(e.message, 'error'); }
+      }
+    });
+  }
+  function familyExtras(box, rec, api) {
+    var card = el('div', 'card rl-summary');
+    box.appendChild(card);
+    card.appendChild(el('h3', 'section-h', 'Enemies in this family'));
+    var enemies = Kit.records.list('enm_').filter(function (e) { return e.family === rec.id; });
+    if (!enemies.length) card.appendChild(el('div', 'empty-line', 'No enemies belong to this family yet.'));
+    else {
+      var chips = el('div', 'rl-chipbar');
+      enemies.forEach(function (e) { chips.appendChild(recLink(e.id, e.name + ' (tier ' + (e.tier || 1) + ')')); });
+      card.appendChild(chips);
+    }
+    var bar = el('div', 'btn-row');
+    bar.appendChild(button('Add an enemy to this family', 'plus', '', function () {
+      askName('New enemy in ' + (rec.name || 'this family'), '').then(function (n) {
+        if (n == null) return;
+        var e = newRecord('Enemy', n.trim());
+        e.family = rec.id; Kit.bundle.touch('rules-new');
+        state.view = 'type:Enemy'; state.editing = e.id; repaint();
+      });
+    }));
+    bar.appendChild(button('Generate tiers', 'spark', '', function () { tierDialog(rec, api); }));
+    card.appendChild(bar);
+    card.appendChild(el('p', 'muted rl-note', 'Generate tiers clones this family and its enemies into N tiers, with scaled stats and a palette shift for each tier.'));
+  }
+  function enemyExtras(box, rec, api) {
+    var aff = el('div', 'card rl-summary');
+    box.appendChild(aff);
+    function paintAff() {
+      U.clear(aff);
+      aff.appendChild(el('h3', 'section-h', 'Effective affinity'));
+      if (!rec.family || missingId(rec.family)) { aff.appendChild(el('div', 'empty-line', 'Choose a family to see how this enemy takes each element.')); return; }
+      var map = window.WS.codex.enemyAffinity(cur(), rec), row = el('div', 'rl-affsum');
+      Object.keys(map).forEach(function (k) { row.appendChild(el('span', 'chip rl-aff rl-aff-' + map[k], esc(elemLabel(k)) + ': ' + esc(map[k]))); });
+      aff.appendChild(row);
+      aff.appendChild(el('p', 'muted rl-note', 'The family default first, then this enemy\'s overrides.'));
+    }
+    paintAff(); api.onLive(paintAff);
+    var g = el('div', 'card rl-summary');
+    box.appendChild(g);
+    g.appendChild(el('h3', 'section-h', 'Gambit set'));
+    if (rec.gambits) {
+      var gr = el('div', 'rl-chipbar');
+      gr.appendChild(recLink(rec.gambits, nameOf(rec.gambits)));
+      if (missingId(rec.gambits)) gr.appendChild(el('span', 'chip chip-broken', 'Broken'));
+      g.appendChild(gr);
+    } else {
+      g.appendChild(el('div', 'muted rl-note', 'No gambit set yet. Create one to script how this enemy chooses its actions.'));
+      g.appendChild(button('Create a gambit set for this enemy', 'plus', '', function () {
+        var nm = String(rec.name || 'Enemy') + ' gambits';
+        var gm = { id: Kit.ids.mint('gmb_', nm), name: nm, charterVersion: cur().charter.version || 0 };
+        typeDefaults('Gambit', gm);
+        Kit.records.put(gm); rec.gambits = gm.id; Kit.bundle.touch('rules-new'); api.changed(true);
+      }));
+    }
+    var sc = el('div', 'card rl-summary');
+    box.appendChild(sc);
+    sc.appendChild(el('h3', 'section-h', 'Scale stats'));
+    var srow = el('div', 'rl-tools');
+    var f = mkInput({ type: 'number', step: 0.05, min: 0.1, max: 10, value: 1.25, label: 'Scale factor' });
+    f.style.maxWidth = '120px';
+    srow.appendChild(f);
+    srow.appendChild(button('Scale all stats', 'chart', '', function () {
+      var k = Number(f.value);
+      if (!(k > 0)) { Kit.ui.toast('Enter a factor above zero.', 'warn'); return; }
+      if (!U.isObj(rec.stats)) rec.stats = {};
+      statList(cur()).forEach(function (s) {
+        var v = Math.round(num(rec.stats[s.key]) * k);
+        rec.stats[s.key] = Math.max(0, Math.min(v, typeof s.max === 'number' ? s.max : 999999));
+      });
+      api.changed(true);
+    }));
+    srow.appendChild(el('span', 'muted rl-note', 'Multiplies every stat by the factor and keeps each within its declared maximum.'));
+    sc.appendChild(srow);
+    var used = Kit.records.list('trp_').filter(function (t) { return (t.members || []).some(function (m) { return m && m.enm === rec.id; }); });
+    var ub = el('div', 'card rl-summary');
+    box.appendChild(ub);
+    ub.appendChild(el('h3', 'section-h', 'Used in troops'));
+    if (!used.length) ub.appendChild(el('div', 'empty-line', 'No troop uses this enemy yet.'));
+    else { var ch = el('div', 'rl-chipbar'); used.forEach(function (t) { ch.appendChild(recLink(t.id, t.name)); }); ub.appendChild(ch); }
+  }
+
+  // ---------------------------------------------------------------- gambits: sortable rule list with a plain language line
+  var COND_DEFAULT = { selfHpBelow: '0.35', selfHpAbove: '0.5', allyHpBelow: '0.35', targetHpBelow: '0.3', turnEvery: '3', enemyCountBelow: '2', allyCountBelow: '2', chance: '0.25' };
+  var FRACTION_CONDS = { selfHpBelow: 1, selfHpAbove: 1, allyHpBelow: 1, targetHpBelow: 1, chance: 1 };
+  var COUNT_CONDS = { turnEvery: 1, enemyCountBelow: 1, allyCountBelow: 1 };
+  var STATUS_COND_KINDS = { targetHasStatus: 1, targetLacksStatus: 1 };
+  var SEL_TEXT = { self: 'itself', randomFoe: 'a random foe', lowestHpFoe: 'the foe with the lowest HP', highestHpFoe: 'the foe with the highest HP', allFoes: 'all foes', randomAlly: 'a random ally', lowestHpAlly: 'the ally with the lowest HP', allAllies: 'all allies', attacker: 'the attacker' };
+  var TRIG_TEXT = { onPhysical: 'it is hit by a physical attack', onMagic: 'it is hit by magic', onDamaged: 'it takes any damage', onAllyKo: 'an ally is knocked out', onLowHp: 'it falls below a quarter of its HP', onStatus: 'it receives a status' };
+  function condText(c) {
+    c = U.isObj(c) ? c : {};
+    var p = c.param, blank = p === '' || p == null || !isFinite(Number(p));
+    var pc = blank ? '(set a value)' : Math.round(Number(p) * 100) + ' percent';
+    var n = blank ? '(set a number)' : String(Math.round(Number(p)));
+    var st = p ? nameOf(p) : '(choose a status)';
+    switch (c.kind) {
+      case 'always': return 'Always';
+      case 'selfHpBelow': return 'If its own HP is below ' + pc;
+      case 'selfHpAbove': return 'If its own HP is above ' + pc;
+      case 'allyHpBelow': return 'If an ally is below ' + pc + ' HP';
+      case 'targetHpBelow': return 'If the target is below ' + pc + ' HP';
+      case 'targetHasStatus': return 'If the target has ' + st;
+      case 'targetLacksStatus': return 'If the target lacks ' + st;
+      case 'turnEvery': return 'Every ' + n + ' turns';
+      case 'enemyCountBelow': return 'If fewer than ' + n + ' foes remain';
+      case 'allyCountBelow': return 'If fewer than ' + n + ' allies remain';
+      case 'chance': return 'With a ' + pc + ' chance';
+      default: return 'Choose a condition';
+    }
+  }
+  function describeRule(r) {
+    r = U.isObj(r) ? r : {};
+    var c = U.isObj(r.condition) ? r.condition : {}, t = U.isObj(r.target) ? r.target : {}, a = U.isObj(r.action) ? r.action : {};
+    var act = a.abl ? nameOf(a.abl) : '(choose an ability)', tg = SEL_TEXT[t.selector] || '(choose a target)';
+    if (c.kind === 'always') return 'Always use ' + act + ' on ' + tg + '.';
+    return condText(c) + ', use ' + act + ' on ' + tg + '.';
+  }
+  function describeCounter(r) {
+    r = U.isObj(r) ? r : {};
+    var a = U.isObj(r.action) ? r.action : {};
+    return 'When ' + (TRIG_TEXT[r.trigger] || '(choose a trigger)') + ', counter with ' + (a.abl ? nameOf(a.abl) : '(choose an ability)') + '.';
+  }
+  function gambitBuilder(box, rec, api, typeName) {
+    var host = el('div', 'rl-gmb'); host.setAttribute('data-bpath', 'rules');
+    box.appendChild(host);
+    var issues = issueBox(typeName, rec, ['rules', 'counters']);
+    var lines = [], nevers = [];
+    function rules() { if (!Array.isArray(rec.rules)) rec.rules = []; return rec.rules; }
+    function counters() { if (!Array.isArray(rec.counters)) rec.counters = []; return rec.counters; }
+    function paintLines() {
+      lines.forEach(function (l) { l.el.textContent = l.text(); });
+      var first = -1;
+      rules().forEach(function (r, i) { if (first < 0 && r && r.condition && r.condition.kind === 'always') first = i; });
+      nevers.forEach(function (n, i) { if (n) n.hidden = !(first >= 0 && i > first); });
+    }
+    function changed(rebuild) {
+      api.changed(false);
+      if (rebuild) paint(); else { paintLines(); issues.paint(); }
+    }
+    function ctrlButtons(list, i, kind, label) {
+      var c = el('div', 'rl-ctrls');
+      var up = iconButton('up', 'Move ' + label + ' up', function () { if (swapIn(list, i, i - 1)) changed(true); });
+      var dn = iconButton('down', 'Move ' + label + ' down', function () { if (swapIn(list, i, i + 1)) changed(true); });
+      up.disabled = i === 0; dn.disabled = i === list.length - 1;
+      c.appendChild(up); c.appendChild(dn);
+      c.appendChild(iconButton('trash', 'Delete ' + label, function () { list.splice(i, 1); changed(true); }, 'btn-danger'));
+      return c;
+    }
+    function ruleRow(r, i) {
+      if (!U.isObj(r.condition)) r.condition = { kind: 'always', param: '' };
+      if (!U.isObj(r.target)) r.target = { selector: '' };
+      if (!U.isObj(r.action)) r.action = { abl: null };
+      var list = rules(), row = el('div', 'rl-grow'), head = el('div', 'rl-grow-head');
+      var grip = el('span', 'rl-grip'); grip.title = 'Drag to reorder'; grip.setAttribute('aria-hidden', 'true');
+      head.appendChild(grip);
+      head.appendChild(el('strong', null, 'Rule ' + (i + 1)));
+      var never = el('span', 'chip chip-warning', 'Never reached'); never.hidden = true;
+      nevers[i] = never; head.appendChild(never);
+      head.appendChild(ctrlButtons(list, i, 'rule', 'rule ' + (i + 1)));
+      row.appendChild(head);
+      var body = el('div', 'rl-grow-body');
+      body.appendChild(fieldBox('Condition', mkSelect(vocabOptions('COND_KINDS'), r.condition.kind, { label: 'Condition for rule ' + (i + 1), placeholder: 'Condition...', onChange: function (v) { r.condition.kind = v; r.condition.param = COND_DEFAULT[v] || ''; changed(true); } }), 'lg'));
+      var k = r.condition.kind;
+      if (FRACTION_CONDS[k]) body.appendChild(fieldBox('Fraction, 0 to 1', mkInput({ type: 'number', step: 0.05, min: 0, max: 1, value: r.condition.param, label: 'Fraction for rule ' + (i + 1), onInput: function (v) { r.condition.param = v; changed(false); } }), 'sm'));
+      else if (COUNT_CONDS[k]) body.appendChild(fieldBox('Number', mkInput({ type: 'number', step: 1, min: 1, max: 99, value: r.condition.param, label: 'Number for rule ' + (i + 1), onInput: function (v) { r.condition.param = v; changed(false); } }), 'sm'));
+      else if (STATUS_COND_KINDS[k]) body.appendChild(fieldBox('Status', refButton('sta_', 'Choose a status', function () { return r.condition.param || null; }, function (v) { r.condition.param = v || ''; changed(false); }, 'Status for rule ' + (i + 1)), 'lg'));
+      body.appendChild(fieldBox('Target', mkSelect(vocabOptions('SELECTORS'), r.target.selector, { label: 'Target for rule ' + (i + 1), placeholder: 'Target...', onChange: function (v) { r.target.selector = v; changed(false); } }), 'lg'));
+      body.appendChild(fieldBox('Ability', refButton('abl_', 'Choose the ability', function () { return r.action.abl || null; }, function (v) { r.action.abl = v; changed(false); }, 'Ability for rule ' + (i + 1)), 'lg'));
+      var line = el('div', 'rl-gline'); line.setAttribute('aria-live', 'polite');
+      lines.push({ el: line, text: function () { return describeRule(r); } });
+      body.appendChild(line);
+      row.appendChild(body);
+      enableDrag(row, grip, 'rule', list, i, function () { changed(true); });
+      return row;
+    }
+    function counterRow(r, i) {
+      if (!U.isObj(r.action)) r.action = { abl: null };
+      var list = counters(), row = el('div', 'rl-grow'), head = el('div', 'rl-grow-head');
+      var grip = el('span', 'rl-grip'); grip.title = 'Drag to reorder'; grip.setAttribute('aria-hidden', 'true');
+      head.appendChild(grip);
+      head.appendChild(el('strong', null, 'Counter ' + (i + 1)));
+      head.appendChild(ctrlButtons(list, i, 'counter', 'counter ' + (i + 1)));
+      row.appendChild(head);
+      var body = el('div', 'rl-grow-body');
+      body.appendChild(fieldBox('Trigger', mkSelect(vocabOptions('TRIGGERS'), r.trigger, { label: 'Trigger for counter ' + (i + 1), placeholder: 'Trigger...', onChange: function (v) { r.trigger = v; changed(false); } }), 'lg'));
+      body.appendChild(fieldBox('Ability', refButton('abl_', 'Choose the counter ability', function () { return r.action.abl || null; }, function (v) { r.action.abl = v; changed(false); }, 'Ability for counter ' + (i + 1)), 'lg'));
+      var line = el('div', 'rl-gline'); line.setAttribute('aria-live', 'polite');
+      lines.push({ el: line, text: function () { return describeCounter(r); } });
+      body.appendChild(line);
+      row.appendChild(body);
+      enableDrag(row, grip, 'counter', list, i, function () { changed(true); });
+      return row;
+    }
+    function paint() {
+      U.clear(host); lines = []; nevers = [];
+      host.appendChild(el('h3', 'section-h', 'Rules'));
+      host.appendChild(el('p', 'muted rl-note', 'Checked from the top. The first rule whose condition holds acts. Use the arrows or drag the handle to reorder.'));
+      var rs = rules();
+      if (!rs.length) host.appendChild(el('div', 'empty-line', 'No rules yet. Add the first one below.'));
+      rs.forEach(function (r, i) { if (U.isObj(r)) host.appendChild(ruleRow(r, i)); });
+      host.appendChild(button('Add a rule', 'plus', '', function () { rules().push({ condition: { kind: 'always', param: '' }, target: { selector: 'randomFoe' }, action: { abl: null } }); changed(true); }));
+      var ch3 = el('h3', 'section-h', 'Counters'); ch3.setAttribute('data-bpath', 'counters');
+      host.appendChild(ch3);
+      host.appendChild(el('p', 'muted rl-note', 'Reactions that fire when the trigger happens, outside the normal turn order.'));
+      var cs = counters();
+      if (!cs.length) host.appendChild(el('div', 'empty-line', 'No counters yet.'));
+      cs.forEach(function (r, i) { if (U.isObj(r)) host.appendChild(counterRow(r, i)); });
+      host.appendChild(button('Add a counter', 'plus', '', function () { counters().push({ trigger: 'onDamaged', action: { abl: null } }); changed(true); }));
+      paintLines(); issues.paint();
+      host.appendChild(issues);
+    }
+    paint();
+  }
+
+  // ---------------------------------------------------------------- troops: row layout builder
+  function troopYield(t) {
+    var y = { gil: 0, exp: 0, ap: 0, count: 0, missing: 0, boss: false };
+    (Array.isArray(t.members) ? t.members : []).forEach(function (m) {
+      var e = m ? recOf(m.enm) : null;
+      if (!e) { y.missing++; return; }
+      y.gil += num(e.gil); y.exp += num(e.exp); y.ap += num(e.ap); y.count++;
+      if (e.isBoss) y.boss = true;
+    });
+    return y;
+  }
+  function troopBuilder(box, rec, api) {
+    var host = el('div', 'rl-trp'); host.setAttribute('data-bpath', 'members');
+    box.appendChild(host);
+    var issues = issueBox('Troop', rec, ['members']);
+    function mem() { if (!Array.isArray(rec.members)) rec.members = []; return rec.members; }
+    function rowOf(m) { return m && m.row === 'back' ? 'back' : 'front'; }
+    function commit() { api.changed(false); paint(); }
+    function neighbor(i, d) {
+      var list = mem(), row = rowOf(list[i]), j = i + d;
+      while (j >= 0 && j < list.length) { if (rowOf(list[j]) === row) return j; j += d; }
+      return -1;
+    }
+    function addTo(row) {
+      if (mem().length >= 8) { Kit.ui.toast('A troop holds at most eight enemies.', 'warn'); return; }
+      Kit.ui.pickRef({ prefix: 'enm_', title: 'Add an enemy to the ' + row + ' row' }).then(function (id) {
+        if (!id) return;
+        mem().push({ enm: id, row: row }); commit();
+      });
+    }
+    function card(m, i) {
+      var e = recOf(m.enm), c = el('div', 'rl-mcard'), top = el('div', 'rl-mtop');
+      if (e) top.appendChild(recLink(m.enm, e.name));
+      else { top.appendChild(el('span', 'ref-empty', esc(m.enm || 'No enemy chosen'))); top.appendChild(el('span', 'chip chip-broken', m.enm ? 'Broken' : 'Empty')); }
+      c.appendChild(top);
+      if (e) {
+        var meta = el('div', 'rl-lmeta');
+        meta.innerHTML = '<span class="chip chip-muted">Lv ' + esc(e.level == null ? '?' : e.level) + '</span>' + (e.isBoss ? '<span class="chip chip-warning">Boss</span>' : '') + (e.family ? '<span class="chip chip-muted">' + esc(nameOf(e.family)) + '</span>' : '');
+        c.appendChild(meta);
+      }
+      var ctl = el('div', 'rl-mctl');
+      var other = rowOf(m) === 'front' ? 'back' : 'front';
+      ctl.appendChild(button('To ' + other + ' row', 'jump', 'btn-ghost', function () { m.row = other; commit(); }));
+      ctl.appendChild(iconButton('edit', 'Change enemy', function () {
+        Kit.ui.pickRef({ prefix: 'enm_', title: 'Choose an enemy', current: m.enm }).then(function (id) { if (id) { m.enm = id; commit(); } });
+      }));
+      var up = iconButton('up', 'Move up in the row', function () { var j = neighbor(i, -1); if (j >= 0 && swapIn(mem(), i, j)) commit(); });
+      var dn = iconButton('down', 'Move down in the row', function () { var j = neighbor(i, 1); if (j >= 0 && swapIn(mem(), i, j)) commit(); });
+      up.disabled = neighbor(i, -1) < 0; dn.disabled = neighbor(i, 1) < 0;
+      ctl.appendChild(up); ctl.appendChild(dn);
+      ctl.appendChild(iconButton('trash', 'Remove from the troop', function () { mem().splice(i, 1); commit(); }, 'btn-danger'));
+      c.appendChild(ctl);
+      return c;
+    }
+    function lane(row, title) {
+      var l = el('div', 'rl-lane'), h = el('div', 'rl-lane-h');
+      var n = mem().filter(function (m) { return rowOf(m) === row; }).length;
+      h.innerHTML = '<span>' + esc(title) + '</span><span class="rl-count">' + n + '</span>';
+      l.appendChild(h);
+      if (!n) l.appendChild(el('div', 'empty-line', 'Empty.'));
+      mem().forEach(function (m, i) { if (U.isObj(m) && rowOf(m) === row) l.appendChild(card(m, i)); });
+      var add = button('Add to ' + row + ' row', 'plus', '', function () { addTo(row); });
+      add.disabled = mem().length >= 8;
+      l.appendChild(add);
+      return l;
+    }
+    function paint() {
+      U.clear(host);
+      host.appendChild(el('h3', 'section-h', 'Row layout'));
+      host.appendChild(el('p', 'muted rl-note', 'The front row stands nearest the party. Add up to eight enemies, and move them between rows.'));
+      var lanes = el('div', 'rl-lanes');
+      lanes.appendChild(lane('back', 'Back row'));
+      lanes.appendChild(lane('front', 'Front row'));
+      host.appendChild(lanes);
+      var y = troopYield(rec);
+      host.appendChild(el('div', 'card rl-summary', '<div class="rl-sumline">' + y.count + ' enem' + (y.count === 1 ? 'y' : 'ies') + '. Rewards: ' + y.gil + ' gil, ' + y.exp + ' EXP, ' + y.ap + ' AP.' + (y.boss ? ' Includes a boss.' : '') + (y.missing ? ' ' + y.missing + ' member' + (y.missing === 1 ? '' : 's') + ' need attention.' : '') + '</div>'));
+      issues.paint();
+      host.appendChild(issues);
+    }
+    paint();
+  }
+
+  // ---------------------------------------------------------------- shops: price sheet
+  function shopEffective(entry) {
+    if (!U.isObj(entry)) return null;
+    var it = recOf(entry.item), base = it && typeof it.price === 'number' ? it.price : 0;
+    var ov = entry.priceOverride;
+    return typeof ov === 'number' && isFinite(ov) ? ov : base;
+  }
+  function shopExtras(box, rec, api) {
+    var card = el('div', 'card rl-summary');
+    box.appendChild(card);
+    function paint() {
+      U.clear(card);
+      card.appendChild(el('h3', 'section-h', 'Price sheet'));
+      var inv = Array.isArray(rec.inventory) ? rec.inventory.filter(U.isObj) : [];
+      if (!inv.length) card.appendChild(el('div', 'empty-line', 'Nothing in stock yet. Add stock in the Inventory field above.'));
+      else {
+        var t = el('table', 'tbl'), total = 0;
+        var rows = inv.map(function (s) {
+          var it = recOf(s.item), eff = shopEffective(s);
+          total += num(eff);
+          var flag = !it ? ' <span class="chip chip-broken">Missing</span>' : it.kind === 'key' ? ' <span class="chip chip-warning">Key item</span>' : num(eff) === 0 ? ' <span class="chip chip-warning">Free</span>' : '';
+          return '<tr><th scope="row">' + esc(it ? it.name : (s.item || '?')) + flag + '</th><td class="num">' + (it && typeof it.price === 'number' ? it.price : 0) + '</td><td class="num">' + (typeof s.priceOverride === 'number' ? s.priceOverride : '') + '</td><td class="num"><strong>' + num(eff) + '</strong></td></tr>';
+        }).join('');
+        t.innerHTML = '<thead><tr><th scope="col">Stock</th><th scope="col" class="num">Base</th><th scope="col" class="num">Override</th><th scope="col" class="num">Pays</th></tr></thead><tbody>' + rows + '</tbody>';
+        var w = el('div', 'tbl-wrap'); w.appendChild(t); card.appendChild(w);
+        card.appendChild(el('div', 'muted rl-note', inv.length + ' line' + (inv.length === 1 ? '' : 's') + ', ' + total + ' gil for one of each.'));
+      }
+      var ch = rec.chapterAvailable ? recOf(rec.chapterAvailable) : null;
+      card.appendChild(el('div', 'muted rl-note', ch ? 'Opens in ' + ch.name + '.' : 'Open from the start, since no chapter is set.'));
+    }
+    paint(); api.onLive(paint);
+  }
+
+
+  // ---------------------------------------------------------------- Expected Party State table and Fill from curves
+  function chaptersOf(b) {
+    var s = b.charter && b.charter.sections;
+    return s && Array.isArray(s.chapters) ? s.chapters.filter(function (c) { return U.isObj(c) && c.id; }) : [];
+  }
+  function epsOfChapter(id) {
+    var l = Kit.records.list('eps_');
+    for (var i = 0; i < l.length; i++) { if (l[i].chapter === id) return l[i]; }
+    return null;
+  }
+  function newEps(ch) {
+    var name = (ch.name || 'Chapter') + ' state';
+    var rec = { id: Kit.ids.mint('eps_', name), name: name, charterVersion: cur().charter.version || 0 };
+    typeDefaults('ExpectedPartyState', rec);
+    rec.chapter = ch.id;
+    Kit.records.put(rec);
+    return rec;
+  }
+  // Total EXP for the final level is spread across the chapters by target minutes. Each chapter gets the highest level
+  // whose exp.curve requirement fits inside the EXP the party is expected to have earned by the end of that chapter.
+  function planCurves(opts) {
+    opts = opts || {};
+    var b = cur(), chs = chaptersOf(b);
+    if (!chs.length) throw new Error('The Charter has no chapters yet.');
+    var finalLevel = clampInt(opts.finalLevel != null && opts.finalLevel !== '' ? opts.finalLevel : uiGet().finalLevel, 2, 99, 50);
+    var total = 0;
+    chs.forEach(function (c) { total += Math.max(0, num(c.targetMinutes)); });
+    if (!(total > 0)) throw new Error('Give the chapters target minutes in the Charter first.');
+    function need(L) { return WSX.evalRole('exp', { a: { level: L }, t: {}, power: 0 }); }
+    var expFinal = need(finalLevel), acc = 0, rows = [];
+    chs.forEach(function (c) {
+      acc += Math.max(0, num(c.targetMinutes));
+      var target = expFinal * acc / total, lvl = 1;
+      for (var L = 1; L <= 99; L++) { if (need(L) <= target) lvl = L; else break; }
+      rows.push({ chapter: c.id, name: c.name, level: Math.min(lvl, finalLevel), minutes: num(c.targetMinutes), exp: Math.round(target) });
+    });
+    return { finalLevel: finalLevel, expFinal: expFinal, totalMinutes: total, rows: rows };
+  }
+  function applyCurves(plan) {
+    var created = 0, changedN = 0, chs = chaptersOf(cur());
+    plan.rows.forEach(function (r) {
+      var ch = chs.filter(function (c) { return c.id === r.chapter; })[0];
+      if (!ch) return;
+      var eps = epsOfChapter(r.chapter);
+      if (!eps) { eps = newEps(ch); created++; }
+      if (eps.targetLevel !== r.level) { eps.targetLevel = r.level; changedN++; }
+    });
+    Kit.index.invalidate(); Kit.bundle.touch('rules-curves');
+    return { created: created, changed: changedN };
+  }
+  function epsView(main) {
+    var b = cur(), chs = chaptersOf(b);
+    main.appendChild(el('h2', 'rl-h2', 'Expected Party State'));
+    main.appendChild(el('p', 'muted rl-lead', 'One row per chapter: where the party should stand on arrival. The Simulator fights every troop against these rows.'));
+    if (!chs.length) main.appendChild(el('div', 'empty-line', 'The Charter has no chapters yet, so there is nothing to plan. Add chapters in the Charter first.'));
+    else {
+      var pace = el('div', 'rl-block rl-pacing');
+      var fl = mkInput({ type: 'number', step: 1, min: 2, max: 99, value: clampInt(uiGet().finalLevel, 2, 99, 50), label: 'Level at the last chapter', onInput: function (v) { uiSet({ finalLevel: clampInt(v, 2, 99, 50) }); } });
+      var bar = el('div', 'rl-tools');
+      bar.appendChild(fieldBox('Level at the last chapter', fl, 'md'));
+      var fill = button('Fill from curves', 'chart', 'btn-primary', function () {
+        var plan;
+        try { plan = planCurves({ finalLevel: fl.value }); } catch (e) { Kit.ui.toast(e.message, 'warn'); return; }
+        uiSet({ finalLevel: plan.finalLevel });
+        var clash = plan.rows.filter(function (r) { var e = epsOfChapter(r.chapter); return e && num(e.targetLevel) > 1 && e.targetLevel !== r.level; }).length;
+        var go = clash ? Kit.ui.confirm({ title: 'Replace ' + clash + ' target level' + (clash === 1 ? '' : 's') + '?', message: 'Fill from curves overwrites the target level on rows that already have one.', okLabel: 'Replace' }) : Promise.resolve(true);
+        go.then(function (ok) {
+          if (!ok) return;
+          var r = applyCurves(plan);
+          Kit.ui.toast('Filled ' + plan.rows.length + ' chapters (' + r.created + ' new rows).', 'ok');
+          repaint(true);
+        });
+      });
+      bar.appendChild(fill);
+      bar.appendChild(button('Create missing rows', 'plus', 'btn-ghost', function () {
+        var n = 0;
+        chs.forEach(function (c) { if (!epsOfChapter(c.id)) { newEps(c); n++; } });
+        Kit.bundle.touch('rules-new'); Kit.ui.toast(n ? 'Created ' + n + ' row' + (n === 1 ? '' : 's') + '.' : 'Every chapter already has a row.', n ? 'ok' : undefined); repaint(true);
+      }));
+      pace.appendChild(bar);
+      pace.appendChild(el('p', 'muted rl-note', 'Fill from curves uses the EXP curve (exp.curve). The EXP for the last chapter level is spread over the chapters by their target minutes, and each chapter gets the highest level that EXP reaches.'));
+      main.appendChild(pace);
+      var grid = el('div', 'rl-egrid');
+      grid.appendChild(el('div', 'rl-ehead', '<span>Chapter</span><span>Target level</span><span>Gear tier</span><span>Gil on hand</span><span>Target win rate</span><span></span>'));
+      chs.forEach(function (c) {
+        var eps = epsOfChapter(c.id), row = el('div', 'rl-erow');
+        var cap = el('div', 'rl-echap');
+        cap.innerHTML = '<strong>' + esc(c.name) + '</strong><span class="muted">' + esc(c.continentLabel || '') + '</span><span class="chip chip-muted">' + num(c.targetMinutes) + ' min</span>';
+        row.appendChild(cap);
+        if (!eps) {
+          row.appendChild(el('span', 'muted rl-note rl-noeps', 'No row yet.'));
+          row.appendChild(button('Create row', 'plus', '', function () { newEps(c); Kit.bundle.touch('rules-new'); repaint(true); }));
+          grid.appendChild(row);
+          return;
+        }
+        function numField(label, key, o) {
+          var inp = mkInput({ type: 'number', step: o.step, min: o.min, max: o.max, value: eps[key] == null ? '' : eps[key], label: label + ' for ' + c.name, onInput: function (v) {
+            if (v === '') delete eps[key]; else eps[key] = o.int ? Math.round(Number(v)) : Number(v);
+            Kit.index.invalidate(); Kit.bundle.touch('rules-edit');
+          } });
+          inp.dataset.eps = eps.id; inp.dataset.key = key;
+          return fieldBox(label, inp, 'sm');
+        }
+        row.appendChild(numField('Target level', 'targetLevel', { int: true, step: 1, min: 1, max: 99 }));
+        row.appendChild(numField('Gear tier', 'gearTier', { int: true, step: 1, min: 1, max: 20 }));
+        row.appendChild(numField('Gil on hand', 'gil', { int: true, step: 1, min: 0, max: 9999999 }));
+        row.appendChild(numField('Target win rate', 'targetWinRate', { step: 1, min: 0, max: 100 }));
+        row.appendChild(button('Details', 'edit', 'btn-ghost', function () { state.editing = eps.id; repaint(); }));
+        grid.appendChild(row);
+      });
+      main.appendChild(grid);
+    }
+    var rb = el('div', 'rl-block');
+    rb.appendChild(el('h3', 'section-h', 'Records'));
+    var host = el('div');
+    rb.appendChild(host); main.appendChild(rb);
+    listView(host, 'ExpectedPartyState');
+  }
+
+  // ---------------------------------------------------------------- economy panel
+  function stockedPrice(eqpId, ci, shops, idxOf) {
+    var best = null;
+    shops.forEach(function (s) {
+      var open = s.chapterAvailable ? (idxOf[s.chapterAvailable] != null ? idxOf[s.chapterAvailable] : Infinity) : 0;
+      if (open > ci) return;
+      (Array.isArray(s.inventory) ? s.inventory : []).forEach(function (e) {
+        if (!U.isObj(e) || e.item !== eqpId) return;
+        var p = shopEffective(e);
+        if (p != null && (best == null || p < best)) best = p;
+      });
+    });
+    return best;
+  }
+  // The cheapest kit at a gear tier: one weapon, one armor, one accessory. A piece that no open shop sells yet is priced at its base price.
+  function gearCost(tier, ci, shops, eqps, idxOf) {
+    var cost = 0, parts = [], anyGear = false, unstocked = false;
+    ['weapon', 'armor', 'accessory'].forEach(function (slot) {
+      var cands = eqps.filter(function (e) { return e.slot === slot && Number(e.tier) === Number(tier); });
+      if (!cands.length) return;
+      anyGear = true;
+      var best = null, bestStocked = null;
+      cands.forEach(function (e) {
+        var p = stockedPrice(e.id, ci, shops, idxOf), base = num(e.price);
+        if (p != null && (bestStocked == null || p < bestStocked.price)) bestStocked = { id: e.id, price: p };
+        if (best == null || base < best.price) best = { id: e.id, price: base };
+      });
+      if (bestStocked) { cost += bestStocked.price; parts.push({ slot: slot, id: bestStocked.id, price: bestStocked.price, stocked: true }); }
+      else { cost += best.price; unstocked = true; parts.push({ slot: slot, id: best.id, price: best.price, stocked: false }); }
+    });
+    return { cost: cost, parts: parts, anyGear: anyGear, unstocked: unstocked };
+  }
+  function economyModel(b) {
+    b = b || cur();
+    var bpm = Number(uiGet().battlesPerMin);
+    if (!isFinite(bpm) || bpm <= 0) bpm = 1;
+    var chs = chaptersOf(b), shops = Kit.records.list('shp_'), eqps = Kit.records.list('eqp_'), troops = Kit.records.list('trp_');
+    var idxOf = {}, cumGil = 0, cumAp = 0, rows = [], materia = rsOf(b).progression === 'materia';
+    chs.forEach(function (c, i) { idxOf[c.id] = i; });
+    chs.forEach(function (c, ci) {
+      var ts = troops.filter(function (t) { return t.chapter === c.id; }), ys = ts.map(troopYield);
+      var avgGil = 0, avgAp = 0;
+      ys.forEach(function (y) { avgGil += y.gil; avgAp += y.ap; });
+      if (ys.length) { avgGil /= ys.length; avgAp /= ys.length; }
+      var minutes = Math.max(0, num(c.targetMinutes)), battles = Math.round(minutes * bpm);
+      var gilIn = Math.round(avgGil * battles), apIn = Math.round(avgAp * battles);
+      cumGil += gilIn; cumAp += apIn;
+      var eps = epsOfChapter(c.id), tier = eps && eps.gearTier ? eps.gearTier : null;
+      var gear = tier ? gearCost(tier, ci, shops, eqps, idxOf) : null;
+      var flags = [];
+      if (!ts.length) flags.push({ key: 'notroops', level: 'warning', text: 'No troops are tagged to this chapter, so it earns nothing.' });
+      if (!eps) flags.push({ key: 'noeps', level: 'warning', text: 'No Expected Party State row, so no gear tier target.' });
+      else if (!tier) flags.push({ key: 'notier', level: 'warning', text: 'The Expected Party State row has no gear tier.' });
+      if (gear) {
+        if (!gear.anyGear) flags.push({ key: 'nogear', level: 'warning', text: 'No equipment is defined at gear tier ' + tier + '.' });
+        else {
+          if (gear.cost > cumGil) flags.push({ key: 'unaffordable', level: 'error', text: 'Gear tier ' + tier + ' costs about ' + gear.cost + ' gil, but the party has earned about ' + cumGil + ' by now.' });
+          if (gear.unstocked) flags.push({ key: 'unstocked', level: 'warning', text: 'No shop open by this chapter sells every piece of tier ' + tier + ' gear.' });
+        }
+      }
+      var apNeed = null;
+      if (materia && eps && Array.isArray(eps.materiaSet)) {
+        apNeed = 0;
+        eps.materiaSet.forEach(function (id) {
+          var m = recOf(id), th = m && Array.isArray(m.apThresholds) ? m.apThresholds : [];
+          if (th.length) apNeed += num(th[th.length - 1]);
+        });
+        if (apNeed > cumAp) flags.push({ key: 'apshort', level: 'warning', text: 'The materia set needs about ' + apNeed + ' AP to master, and the party has earned about ' + cumAp + '.' });
+      }
+      rows.push({ id: c.id, name: c.name, minutes: minutes, troops: ts.length, avgGil: avgGil, avgAp: avgAp, battles: battles, gilIn: gilIn, apIn: apIn, cumGil: cumGil, cumAp: cumAp, tier: tier, gear: gear, apNeed: apNeed, flags: flags });
+    });
+    var priceLists = shops.map(function (s) {
+      var inv = (Array.isArray(s.inventory) ? s.inventory : []).filter(U.isObj), prices = inv.map(shopEffective).filter(function (p) { return p != null; });
+      var open = s.chapterAvailable ? (idxOf[s.chapterAvailable] != null ? chs[idxOf[s.chapterAvailable]].name : 'unknown chapter') : 'the start';
+      return { id: s.id, name: s.name, open: open, lines: inv.length, cheapest: prices.length ? Math.min.apply(null, prices) : null, priciest: prices.length ? Math.max.apply(null, prices) : null };
+    });
+    var unaffordable = rows.filter(function (r) { return r.flags.some(function (f) { return f.key === 'unaffordable'; }); }).map(function (r) { return r.id; });
+    return { battlesPerMin: bpm, rows: rows, shops: priceLists, unaffordable: unaffordable, totalGil: cumGil, totalAp: cumAp };
+  }
+  function economyView(main) {
+    var b = cur(), m = economyModel(b);
+    main.appendChild(el('h2', 'rl-h2', 'Economy'));
+    main.appendChild(el('p', 'muted rl-lead', 'A planning estimate, not a simulation. Income is the average gil and AP of the troops tagged to each chapter, times the number of battles the target minutes allow. It is compared with the price of the gear tier the Expected Party State expects.'));
+    var pace = el('div', 'rl-tools');
+    var bp = mkInput({ type: 'number', step: 0.1, min: 0.1, max: 10, value: m.battlesPerMin, label: 'Battles per minute' });
+    bp.addEventListener('change', function () { var v = Number(bp.value); uiSet({ battlesPerMin: isFinite(v) && v > 0 ? v : 1 }); repaint(true); });
+    pace.appendChild(fieldBox('Battles per minute', bp, 'md'));
+    var sum = el('div', 'rl-chipbar');
+    sum.innerHTML = '<span class="chip chip-muted">' + m.rows.length + ' chapters</span><span class="chip chip-muted">' + m.totalGil + ' gil in total</span><span class="chip chip-muted">' + m.totalAp + ' AP in total</span><span class="chip ' + (m.unaffordable.length ? 'chip-error' : 'chip-ok') + '">' + m.unaffordable.length + ' unaffordable</span>';
+    pace.appendChild(sum);
+    main.appendChild(pace);
+    if (!m.rows.length) { main.appendChild(el('div', 'empty-line', 'The Charter has no chapters yet. Add chapters in the Charter, then tag troops to them.')); return; }
+    var chartWrap = el('div', 'rl-block');
+    chartWrap.appendChild(el('h3', 'section-h', 'Gil earned against gear cost'));
+    var cw = el('div', 'rl-chart'), canvas = el('canvas');
+    canvas.setAttribute('role', 'img');
+    canvas.setAttribute('aria-label', 'Cumulative gil earned by chapter compared with the cost of the target gear tier. The cards below give every number.');
+    cw.appendChild(canvas); chartWrap.appendChild(cw);
+    main.appendChild(chartWrap);
+    var chart = null, dead = false;
+    prevCtl = { destroy: function () { dead = true; if (chart) { chart.destroy(); chart = null; } } };
+    whenChart(function (C) {
+      if (dead || !alive(cw)) return;
+      if (!C) { chartWrap.hidden = true; return; }
+      var cs = getComputedStyle(document.documentElement);
+      var accent = (cs.getPropertyValue('--accent') || '#d4a24c').trim() || '#d4a24c';
+      var warn = (cs.getPropertyValue('--warn') || '#eaa84a').trim() || '#eaa84a';
+      var grid = (cs.getPropertyValue('--line') || 'rgba(128,128,128,.25)').trim() || 'rgba(128,128,128,.25)';
+      var txt = (cs.getPropertyValue('--muted') || '#999').trim() || '#999';
+      chart = new C(canvas.getContext('2d'), {
+        type: 'line',
+        data: { labels: m.rows.map(function (r) { return r.name; }), datasets: [
+          { label: 'Cumulative gil earned', data: m.rows.map(function (r) { return r.cumGil; }), borderColor: accent, backgroundColor: accent, borderWidth: 2, pointRadius: 3, tension: 0.1 },
+          { label: 'Target gear cost', data: m.rows.map(function (r) { return r.gear && r.gear.anyGear ? r.gear.cost : null; }), borderColor: warn, backgroundColor: warn, borderWidth: 2, borderDash: [6, 4], pointRadius: 3, tension: 0.1, spanGaps: true }
+        ] },
+        options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false },
+          plugins: { legend: { labels: { color: txt } } },
+          scales: { x: { ticks: { color: txt, maxRotation: 45, autoSkip: true }, grid: { color: grid } }, y: { title: { display: true, text: 'Gil', color: txt }, ticks: { color: txt }, grid: { color: grid }, beginAtZero: true } } }
+      });
+      canvas.dataset.points = String(m.rows.length);
+    });
+    var cards = el('div', 'rl-econ');
+    m.rows.forEach(function (r) {
+      var c = el('div', 'card rl-ecard' + (r.flags.some(function (f) { return f.level === 'error'; }) ? ' bad' : ''));
+      var head = el('div', 'rl-ecard-h');
+      head.innerHTML = '<strong>' + esc(r.name) + '</strong>' + (r.tier ? '<span class="chip chip-muted">Gear tier ' + r.tier + '</span>' : '');
+      c.appendChild(head);
+      var kv = el('div', 'rl-kv');
+      function item(k, v) { kv.appendChild(el('div', null, '<span>' + esc(k) + '</span><strong>' + esc(v) + '</strong>')); }
+      item('Minutes', r.minutes); item('Troops tagged', r.troops);
+      item('Avg gil per battle', Math.round(r.avgGil)); item('Battles', r.battles);
+      item('Gil earned', r.gilIn); item('Cumulative gil', r.cumGil);
+      item('AP earned', r.apIn); item('Cumulative AP', r.cumAp);
+      item('Target gear cost', r.gear && r.gear.anyGear ? r.gear.cost : 'None');
+      item('AP to master set', r.apNeed == null ? 'None' : r.apNeed);
+      c.appendChild(kv);
+      if (r.flags.length) {
+        var fl = el('div', 'rl-flags');
+        r.flags.forEach(function (f) { fl.appendChild(el('div', 'msg msg-' + (f.level === 'error' ? 'error' : 'warning'), esc(f.text))); });
+        c.appendChild(fl);
+      }
+      cards.appendChild(c);
+    });
+    main.appendChild(cards);
+    var sh = el('div', 'rl-block');
+    sh.appendChild(el('h3', 'section-h', 'Shop price lists'));
+    if (!m.shops.length) sh.appendChild(el('div', 'empty-line', 'No shops yet. Create shops in the Shops list.'));
+    else {
+      var list = el('div', 'rl-reclist');
+      m.shops.forEach(function (s) {
+        var row = el('div', 'rl-rec'), btn = el('button', 'rl-rec-main'); btn.type = 'button';
+        btn.innerHTML = '<strong>' + esc(s.name) + '</strong><span class="muted">Opens at ' + esc(s.open) + '. ' + s.lines + ' line' + (s.lines === 1 ? '' : 's') + (s.cheapest == null ? '' : ', ' + s.cheapest + ' to ' + s.priciest + ' gil') + '.</span>';
+        btn.addEventListener('click', function () { openRecord(s.id); });
+        row.appendChild(btn); list.appendChild(row);
+      });
+      sh.appendChild(list);
+    }
+    main.appendChild(sh);
+  }
+
+  // ---------------------------------------------------------------- characters: draft from the Charter party
+  function seedPrompt(seeds, dir) {
+    var n = seeds.length;
+    return 'Draft ' + n + ' playable character' + (n > 1 ? 's' : '') + ', one for each of these Charter party entries' + (n > 1 ? ', in this order' : '') + '. Use each name exactly as written and let the character honor the past. ' +
+      seeds.map(function (m, k) { return (k + 1) + '. ' + m.name + ': ' + (m.past || 'no past written yet') + '.'; }).join(' ') +
+      ' Give each a distinct weapon class and stat leanings, base stats near the low end of each declared stat range for level 1, and small growth values.' + (dir ? ' Direction: ' + dir : '');
+  }
+  function characterDraftDialog(mode, preselect) {
+    var members = partyMembers(cur());
+    if (!members.length) return Promise.resolve({ generic: true });
+    return new Promise(function (resolve) {
+      var inputs = [], dir;
+      Kit.ui.dialog({
+        title: mode === 'set' ? 'Draft characters from the Charter party' : 'Draft a character from the Charter party',
+        body: function (body) {
+          body.appendChild(el('p', 'muted', 'Each draft is seeded by a party entry and keeps its name and past.'));
+          var list = el('div', 'rl-seedlist'), firstFree = -1;
+          members.forEach(function (m, i) { if (firstFree < 0 && !chrByName(m.name)) firstFree = i; });
+          members.forEach(function (m, i) {
+            var has = chrByName(m.name), lab = el('label', 'rl-seed');
+            var inp = el('input'); inp.type = mode === 'set' ? 'checkbox' : 'radio'; inp.name = 'rl_seed'; inp.value = String(i);
+            inp.checked = preselect != null ? preselect === i : (mode === 'set' ? !has : (firstFree >= 0 ? i === firstFree : i === 0));
+            inputs.push(inp);
+            lab.appendChild(inp);
+            var txt = el('span', 'rl-seed-t');
+            txt.innerHTML = '<strong>' + esc(m.name) + '</strong>' + (has ? ' <span class="chip chip-ok">Has a record</span>' : ' <span class="chip chip-muted">No record yet</span>') + '<span class="muted rl-note">' + esc(m.past || '') + '</span>';
+            lab.appendChild(txt);
+            list.appendChild(lab);
+          });
+          body.appendChild(list);
+          var f = el('div', 'field'); f.appendChild(el('label', 'field-label', 'Direction'));
+          dir = el('textarea', 'inp'); dir.rows = 2; dir.id = 'rl_cdir'; dir.placeholder = 'Optional. For example: keep the party balanced between melee and magic.';
+          f.firstChild.htmlFor = 'rl_cdir'; f.appendChild(dir); body.appendChild(f);
+        },
+        actions: [{ label: 'Cancel', kind: 'ghost', value: null }, { label: mode === 'set' ? 'Draft the set' : 'Draft', kind: 'primary', value: 'go' }],
+        onResult: function (v) {
+          if (v !== 'go') { resolve(null); return; }
+          var seeds = [];
+          inputs.forEach(function (inp, i) { if (inp.checked) seeds.push(members[i]); });
+          if (!seeds.length) { Kit.ui.toast('Choose at least one party entry.', 'warn'); resolve(null); return; }
+          seeds = seeds.slice(0, 12);
+          resolve({ count: seeds.length, prompt: seedPrompt(seeds, dir.value.trim()) });
+        }
+      });
+    });
+  }
+  function characterListExtras(main) {
+    var members = partyMembers(cur());
+    var box = el('div', 'rl-block');
+    box.appendChild(el('h3', 'section-h', 'Charter party'));
+    if (!members.length) { box.appendChild(el('div', 'empty-line', 'The Charter party has no members yet. Add them in the Charter, and each one can seed a character here.')); main.appendChild(box); return; }
+    var list = el('div', 'rl-reclist');
+    members.forEach(function (m, i) {
+      var has = chrByName(m.name), row = el('div', 'rl-rec rl-seedrow');
+      var info = el('div', 'rl-rec-main rl-seedinfo');
+      info.innerHTML = '<strong>' + esc(m.name) + '</strong>' + (has ? '<span class="chip chip-ok">Has a record</span>' : '<span class="chip chip-muted">No record yet</span>') + '<span class="muted rl-note rl-seedpast">' + esc(m.past || '') + '</span>';
+      row.appendChild(info);
+      var acts = el('div', 'rl-seedacts');
+      if (has) acts.appendChild(recLink(has.id, 'Open'));
+      else acts.appendChild(button('Create blank', 'plus', 'btn-ghost', function () {
+        var rec = newRecord('Character', String(m.name).trim());
+        state.view = 'type:Character'; state.editing = rec.id; repaint();
+      }));
+      acts.appendChild(Kit.ai.button('Draft', function () { return runDraft('Character', 'one', i).then(function () { repaint(); }); }, { busyLabel: 'Drafting...' }));
+      row.appendChild(acts);
+      list.appendChild(row);
+    });
+    box.appendChild(list);
+    main.appendChild(box);
+  }
+  WSX.content = {
+    slotLayoutOf: slotLayoutOf, describeRule: describeRule, describeCounter: describeCounter, generateTiers: generateTiers,
+    planCurves: planCurves, applyCurves: applyCurves, economy: economyModel, troopYield: troopYield, shiftHex: shiftHex,
+    ablSummary: ablSummary, chaptersOf: chaptersOf, epsOfChapter: epsOfChapter, partyMembers: partyMembers, seedPrompt: seedPrompt, shopEffective: shopEffective
+  };
+
   function editorView(main, typeName, rec) {
     var t = typeByName(typeName), b = cur();
     var stale = staleMap(b)[rec.id];
@@ -6443,6 +7846,11 @@ details.cx-block > .cx-block-sum { padding: 0; }
       }
     };
     kform = Kit.form.render(formHost, typeName, rec, function () { api.changed(false); }, {});
+    // Fields that a visual builder below the form owns are hidden here, so nothing is edited in two places.
+    ((TYPE_CFG[typeName] || {}).hide || []).forEach(function (p) {
+      var w = formHost.querySelector('.field[data-path="' + p + '"]');
+      if (w) { w.style.display = 'none'; w.setAttribute('data-hidden', 'builder'); }
+    });
     var cfg = TYPE_CFG[typeName];
     if (cfg && cfg.extras) cfg.extras(extras, rec, api);
     void t;
@@ -6475,20 +7883,24 @@ details.cx-block > .cx-block-sum { padding: 0; }
           if (v !== 'go') { resolve(null); return; }
           var n = mode === 'set' ? Math.max(2, Math.min(8, Math.round(Number(count.value)) || 4)) : 1;
           var d = dir.value.trim();
-          var p = (cfg.draftPrompt || ('Draft ' + n + ' ' + label + ' record' + (n > 1 ? 's' : '') + ' that fit the Charter.')) + (n > 1 ? ' Draft ' + n + ' records that work well together and do not repeat each other.' : '') + (d ? ' Direction: ' + d : '');
+          var base = typeof cfg.draftPrompt === 'function' ? cfg.draftPrompt(cur()) : cfg.draftPrompt;
+          var p = (base || ('Draft ' + n + ' ' + label + ' record' + (n > 1 ? 's' : '') + ' that fit the Charter.')) + (n > 1 ? ' Draft ' + n + ' records that work well together and do not repeat each other.' : '') + (d ? ' Direction: ' + d : '');
           resolve({ count: n, prompt: p });
         }
       });
     });
   }
-  function runDraft(typeName, mode) {
-    return draftDialog(typeName, mode).then(function (o) {
+  function runDraft(typeName, mode, seed) {
+    function go(o) {
       if (!o) return null;
       return Kit.ai.draftRecords(typeName, {
         count: o.count, prompt: o.prompt, tier: 'sonnet',
         onAccept: function (rec) { Kit.records.put(rec); Kit.index.invalidate(); if (o.count === 1) { state.view = 'type:' + typeName; state.editing = rec.id; } }
       });
-    });
+    }
+    // Characters are seeded from the Charter party entries. With no party entries the plain dialog is used.
+    var first = typeName === 'Character' ? characterDraftDialog(mode, seed) : draftDialog(typeName, mode);
+    return first.then(function (o) { return o && o.generic ? draftDialog(typeName, mode).then(go) : go(o); });
   }
 
   function listView(main, typeName) {
@@ -6510,6 +7922,8 @@ details.cx-block > .cx-block-sum { padding: 0; }
     bar.appendChild(Kit.ai.button('Draft with Claude', function () { return runDraft(typeName, 'one').then(function () { repaint(); }); }, { busyLabel: 'Drafting...' }));
     bar.appendChild(Kit.ai.button('Draft a Set', function () { return runDraft(typeName, 'set').then(function () { repaint(); }); }, { busyLabel: 'Drafting...' }));
     main.appendChild(bar);
+    var lcfg = TYPE_CFG[typeName];
+    if (lcfg && lcfg.listExtras) lcfg.listExtras(main);
     var list = el('div', 'rl-reclist');
     main.appendChild(list);
     function paint() {
@@ -6649,7 +8063,8 @@ details.cx-block > .cx-block-sum { padding: 0; }
     wrap.appendChild(rail); wrap.appendChild(main);
     host.appendChild(wrap);
     var v = state.view;
-    if (v.indexOf('sys:') === 0) {
+    if (v === 'econ') { state.editing = null; economyView(main); }
+    else if (v.indexOf('sys:') === 0) {
       var k = v.slice(4);
       if (k === 'formulas') { main.appendChild(el('h2', 'rl-h2', 'Formulas')); state.editing = null; formulasView(main); }
       else systemsView(main, k);
@@ -6660,10 +8075,21 @@ details.cx-block > .cx-block-sum { padding: 0; }
         var rec = state.editing ? Kit.records.get(state.editing) : null;
         if (state.editing && !rec) state.editing = null;
         if (rec) editorView(main, tn, rec);
+        else if (tn === 'ExpectedPartyState') epsView(main);
         else { main.appendChild(el('h2', 'rl-h2', esc(v === 'type:Status' ? 'Statuses' : v === 'type:Weather' ? 'Weather states' : (t.label || tn)))); listView(main, tn); }
       }
     }
-    if (isRepaint && state.focusPath && kform) { kform.focusPath(state.focusPath); state.focusPath = null; }
+    if (isRepaint && state.focusPath) {
+      // Fields owned by a builder are hidden in the form, so jump to the builder that carries that path.
+      var fp = state.focusPath, bh = null;
+      Array.prototype.forEach.call(host.querySelectorAll('[data-bpath]'), function (n) {
+        var bp = n.getAttribute('data-bpath');
+        if (fp === bp || fp.indexOf(bp + '.') === 0 || fp.indexOf(bp + '[') === 0) bh = n;
+      });
+      if (bh) bh.scrollIntoView({ block: 'center' });
+      else if (kform) kform.focusPath(fp);
+      state.focusPath = null;
+    }
   };
 
   WSX.focus = function (recordId, fieldPath) {
