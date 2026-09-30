@@ -136,6 +136,48 @@ PASS 1 (2026-09-30, Opus): KIT:CORE and Shell. COMPLETE.
     formula previews; Pass 4b replaces generic editors for slot layout, gambits and troops. Pass 6 export still must
     add rules to kit.opened for bundles that never generated a Codex.
 === END PASS 3 ===
+=== PASS 4a: RULES SYSTEMS (Sonnet), COMPLETE ===
+  Built: WS:RULES css and js fences, Kit.expr in KIT:CORE, a duplicate evaluator in ENGINE:BATTLE (version 0.1.0).
+  Rules workspace: left rail (a scroller under 820px) with Systems (Stats, Elements, Relations, Taxonomy, Affinity,
+    Formulas, Statuses, Weather states, Progression for the active module type) and Content (every other rules type the
+    Codex declares, living types last). Every list has search, New, Duplicate, Delete through a confirm dialog, Draft with
+    Claude and Draft a Set (2 to 8 records through Kit.ai.draftRecords and Kit.review). Editors use Kit.form with a Back
+    button, stale chip, and Mark reviewed (sets charterVersion to the current Charter version). Content types use the generic
+    list and editor; Pass 4b specializes them.
+  Systems editors write to charter.ruleset and are read only while the Charter is locked, with an Amend Charter banner.
+    Because Rules opens only while the Charter is locked, the same editors open fully editable in a drawer from the Charter
+    Ruleset section (patch P8, button Edit stats, elements, relations, taxonomy). Keys are permanent once a record or formula
+    uses them (usage scanner); deleting an element removes its relations and taxonomy value, and lists other users.
+    Default affinity is computed by WS.codex.defaultAffinity from the relation table; the Affinity view previews the absorb
+    option per taxonomy value and toggles absorbsOwnType on real families.
+  Formula library (WS.rules.FORMULA_LIB, mirrored in Pass 5, parameter names and defaults are the contract):
+    phys.ff6 {levelDiv 256, defBase 256, mult 1, floor 1}; mag.ff6 {powerMult 4, levelDiv 32, defBase 256, floor 1};
+    phys.sub {atkMult 1, defMult 0.5, floor 1}; mag.flat {magMult 1, mdefMult 0.5, floor 1}; heal.std {magMult 2, mult 1, floor 1};
+    var.std {spread 0.1, roll 0.5}; exp.curve {base 40, exponent 2.1}; ap.curve {base 100, growth 2}; atb.fill {spdOffset 20, rate 8}.
+    Each template has an expression mirror (FORMULA_LIB[id].expr) that Pass 5 must reproduce exactly in ENGINE:BATTLE templates.
+  Kit.expr: parse(src, {stats, params}) to AST, evaluate(astOrSrc, scope, opts), variables(ast), FUNCTIONS, MAX_LEN. Numbers,
+    + - * / ^, parentheses, min max floor ceil round clamp pow sqrt, and only a.<stat>, a.level, t.<stat>, t.level, power,
+    p.<param>. Unary minus binds looser than ^ (so -2 ^ 2 is -4); ^ is right associative. Anything else is a parse error with
+    a position. Division by zero, sqrt of a negative, clamp with low above high, and non finite results throw at evaluation.
+    ENGINE_BATTLE.evalExpr has the identical core text and returns the same results (checked on 11 cases including errors).
+  Preview: WS.rules.preview(host, getSource) draws a Chart.js line for levels 1 to a cap (default 99) with editable sample
+    level, power, cap, and attacker and target stats; it degrades to a results table when Chart.js is unavailable.
+  Other: Weather Suggest from meteorology (Sonnet, ranges 0 to 5, review table before Apply); Materia Fill AP thresholds from
+    the AP formula; validator rules.formulas (template exists, expression parses with declared stats and params, formulaSet roles
+    resolve); Kit.mount focus support so validation jumps land on the record and field.
+  Public API added: WS.rules {canEnter, render, focus, open(view, id), openSystems(tab), systems {stats, elements, relations,
+    taxonomy, affinity}, preview, formulaSource(id), evalFormula(id, scope), roleId(role), evalRole(role, scope), usage(kind, key),
+    staleIds(), FORMULA_LIB, FORMULA_ORDER, state}. evalFormula scope is {a:{level,<stat>}, t:{level,<stat>}, power}; p comes
+    from the template or record parameters.
+  Acceptance: every systems record (stats, elements, relations, taxonomy, statuses, weather, formulas, materia) created from
+    scratch and drafted with a mocked Claude reply; illegal tokens (os.exit, semicolon, brackets, backticks, unknown stat, unknown
+    parameter, dangling operator) rejected with a message in the preview, the form, and the validator; preview charts update on
+    template swap, sample edits, cap edits, and expression edits; locked read only view and unlocked drawer editing; stale
+    review flow; 375px with no horizontal scroll and 44px targets in Night and Parchment; syntax check, ASCII scan, forbidden API
+    scan, backlink count, fence order.
+  Known deferrals: Pass 4b replaces the generic editors for equipment slot layout, gambits, troops, and enemies. Pass 5 builds
+    the engine templates against FORMULA_LIB and the turn loop. The Charter validation for the ruleset section is unchanged.
+=== END PASS 4a ===
 === END BUILD LOG ===
 -->
 <!doctype html>
@@ -566,6 +608,95 @@ details.cx-block > .cx-block-sum { padding: 0; }
 }
 /* === WS:CODEX CSS END === */
 /* === WS:RULES CSS BEGIN === */
+.rl-wrap { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 14px; align-items: start; }
+.rl-rail { display: flex; flex-direction: column; gap: 12px; padding: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); position: sticky; top: 8px; max-height: calc(100vh - 24px); overflow: auto; }
+.rl-group { display: flex; flex-direction: column; gap: 3px; }
+.rl-group-h { font-family: var(--font-display); font-size: .78rem; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); padding: 4px 8px; }
+.rl-nav { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 6px 10px; border: 1px solid transparent; border-radius: var(--radius-sm); background: transparent; color: var(--ink); font: inherit; text-align: left; cursor: pointer; width: 100%; }
+.rl-nav:hover { background: var(--accent-soft); }
+.rl-nav.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.rl-nav:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.rl-nav-l { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rl-count { font-size: .78rem; color: var(--muted); background: var(--bg2); border-radius: 999px; padding: 1px 8px; flex: none; }
+.rl-main { min-width: 0; }
+.rl-h2 { font-family: var(--font-display); font-size: 1.25rem; margin: 0 0 10px; }
+.rl-lead { margin: 0 0 12px; }
+.rl-note { font-size: .86rem; }
+.rl-banner { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; padding: 10px 12px; margin-bottom: 12px; border: 1px solid var(--line2); border-left: 4px solid var(--accent); border-radius: var(--radius-sm); background: var(--accent-soft); }
+.rl-banner span { flex: 1 1 220px; }
+.rl-rows { display: flex; flex-direction: column; gap: 10px; }
+.rl-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; padding: 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg2); }
+.rl-row.bad { border-color: var(--danger, #d9534f); }
+.rl-f { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1 1 140px; }
+.rl-f.sm { flex: 0 1 110px; }
+.rl-f.md { flex: 0 1 170px; }
+.rl-f.lg { flex: 1 1 180px; }
+.rl-f > label { font-size: .82rem; color: var(--ink2); }
+.rl-keycode { display: flex; align-items: center; min-height: 44px; padding: 0 10px; font-family: var(--font-mono); border: 1px dashed var(--line2); border-radius: var(--radius-sm); color: var(--ink2); }
+.rl-ctrls { display: flex; gap: 2px; margin-left: auto; }
+.rl-msgs { flex: 1 1 100%; display: flex; flex-direction: column; gap: 2px; }
+.rl-msgs:empty { display: none; }
+.rl-pairnote { flex: 1 1 100%; font-size: .86rem; }
+.rl-pairnote:empty { display: none; }
+.rl-addbar { margin-top: 12px; }
+.rl-chipbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 12px; }
+.rl-chipbtn { min-height: 44px; }
+.rl-tabs { display: flex; gap: 4px; overflow-x: auto; margin-bottom: 12px; border-bottom: 1px solid var(--line); }
+.rl-tab { min-height: 44px; padding: 0 14px; border: 0; border-bottom: 3px solid transparent; background: transparent; color: var(--ink2); font: inherit; cursor: pointer; white-space: nowrap; }
+.rl-tab[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+.rl-aff { text-transform: capitalize; }
+.rl-aff-weak { background: rgba(217,83,79,.18); color: var(--danger, #d9534f); }
+.rl-aff-resist { background: rgba(80,140,220,.18); }
+.rl-aff-immune, .rl-aff-absorb { background: rgba(90,180,110,.2); }
+.rl-matrix th, .rl-matrix td { white-space: nowrap; }
+.rl-main .switch, .drawer .switch, .rl-tbl-wrap { position: relative; }
+.rl-famrow { align-items: center; }
+.rl-affsum { display: flex; flex-wrap: wrap; gap: 4px; flex: 1 1 100%; }
+.rl-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+.rl-search { flex: 1 1 200px; min-width: 0; }
+.rl-reclist { display: flex; flex-direction: column; gap: 6px; }
+.rl-rec { display: flex; align-items: center; gap: 4px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg2); padding-right: 4px; }
+.rl-rec-main { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; min-height: 48px; padding: 6px 12px; border: 0; background: transparent; color: var(--ink); font: inherit; text-align: left; cursor: pointer; border-radius: var(--radius-sm); }
+.rl-rec-main:hover { background: var(--accent-soft); }
+.rl-rec-main:focus-visible { outline: 2px solid var(--accent); }
+.rl-edhead { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+.rl-edtitle { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; flex: 1 1 160px; min-width: 0; }
+.rl-edacts { display: flex; flex-wrap: wrap; gap: 6px; }
+.rl-extras { margin-top: 16px; display: flex; flex-direction: column; gap: 12px; }
+.rl-tools { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.rl-tools select { max-width: 320px; }
+.rl-expr code, .rl-defaults code { word-break: break-word; }
+.rl-defaults code { margin-right: 6px; }
+.rl-block { margin-bottom: 20px; }
+.rl-roles { display: flex; flex-wrap: wrap; gap: 8px; }
+.rl-role { display: inline-flex; gap: 8px; align-items: center; min-height: 44px; padding: 4px 12px; border: 1px solid var(--line2); border-radius: 999px; background: var(--bg2); color: var(--ink); font: inherit; cursor: pointer; }
+.rl-role.bad { border-color: var(--danger, #d9534f); }
+.rl-libgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+.rl-libcard { display: flex; flex-direction: column; gap: 6px; }
+.rl-libcard p { margin: 0; flex: 1; font-size: .9rem; }
+.rl-libhead { display: flex; justify-content: space-between; gap: 6px; align-items: center; }
+.rl-prev { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 12px; background: var(--bg2); }
+.rl-prev-inputs { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 10px; }
+.rl-si-group { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; flex: 1 1 200px; min-width: 0; }
+.rl-si-title { flex: 1 1 100%; font-size: .82rem; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.rl-si { display: flex; flex-direction: column; gap: 3px; flex: 0 1 84px; min-width: 70px; font-size: .8rem; color: var(--ink2); }
+.rl-si .inp { padding-left: 8px; padding-right: 8px; }
+.rl-prev-read { margin: 6px 0; }
+.rl-chart { position: relative; height: 240px; width: 100%; }
+.rl-chart canvas { max-width: 100%; }
+.rl-prev-table { margin-top: 10px; max-height: 200px; overflow: auto; }
+@media (max-width: 820px) {
+  .rl-wrap { grid-template-columns: minmax(0, 1fr); }
+  .rl-rail { position: static; max-height: none; flex-direction: column; }
+  .rl-group { flex-direction: row; overflow-x: auto; gap: 6px; padding-bottom: 2px; }
+  .rl-group-h { flex: none; align-self: center; padding: 0 6px 0 2px; }
+  .rl-nav { width: auto; flex: none; }
+  .rl-nav-l { overflow: visible; }
+}
+@media (max-width: 480px) {
+  .rl-f.sm { flex: 1 1 90px; }
+  .rl-ctrls { flex: 1 1 100%; justify-content: flex-end; margin-left: 0; }
+}
 /* === WS:RULES CSS END === */
 /* === WS:ARENA CSS BEGIN === */
 /* === WS:ARENA CSS END === */
@@ -2847,6 +2978,249 @@ details.cx-block > .cx-block-sum { padding: 0; }
   Kit.on('change', function () { paintTitle(); refreshSoon(); });
   Kit.on('load', function () { paintTitle(); Kit.refreshValidation(); paintTabs(); if (activeId && !Kit.canEnter(activeId).ok) Kit.go(order[0], { silent: true }); else Kit.rerender(); });
 
+  // ---------------------------------------------------------------- safe expression language (Pass 4a)
+  // Tokenizer, shunting yard to AST, evaluator. Identical text lives in ENGINE:BATTLE (evalExpr); tests compare both.
+  Kit.expr = (function () {
+  'use strict';
+    var FUNCS = { min: [1, 99], max: [1, 99], floor: [1, 1], ceil: [1, 1], round: [1, 1], clamp: [3, 3], pow: [2, 2], sqrt: [1, 1] };
+    var FUNC_NAMES = ['min', 'max', 'floor', 'ceil', 'round', 'clamp', 'pow', 'sqrt'];
+    var MAX_LEN = 2000;
+    var VAR_HELP = 'Use a.<stat>, a.level, t.<stat>, t.level, power, or p.<param>.';
+    var PREC = { '+': 1, '-': 1, '*': 2, '/': 2, '^': 4 };
+
+    function fail(msg, pos) { var e = new Error(msg); if (pos != null) e.pos = pos; throw e; }
+    function has(o, k) { return o !== null && typeof o === 'object' && Object.prototype.hasOwnProperty.call(o, k); }
+    function isDigit(c) { return c >= '0' && c <= '9'; }
+    function isIdStart(c) { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c === '_'; }
+    function isIdPart(c) { return isIdStart(c) || isDigit(c); }
+
+    function tokenize(src) {
+      if (typeof src !== 'string') fail('The expression must be text.');
+      if (src.length > MAX_LEN) fail('The expression is longer than ' + MAX_LEN + ' characters.');
+      var out = [], i = 0, n = src.length, c, j, k, d, seenDot, nx;
+      while (i < n) {
+        c = src.charAt(i);
+        if (c === ' ' || c === '\t' || c === '\n' || c === '\r') { i++; continue; }
+        if (isDigit(c) || (c === '.' && i + 1 < n && isDigit(src.charAt(i + 1)))) {
+          j = i; seenDot = false;
+          while (j < n) {
+            d = src.charAt(j);
+            if (isDigit(d)) j++;
+            else if (d === '.' && !seenDot) { seenDot = true; j++; }
+            else break;
+          }
+          nx = src.charAt(j);
+          if (nx === '.') fail("Unexpected '.' at position " + (j + 1) + '.', j);
+          if (nx !== '' && isIdStart(nx)) fail("Unexpected '" + nx + "' after a number at position " + (j + 1) + '.', j);
+          out.push({ t: 'num', v: parseFloat(src.slice(i, j)), pos: i });
+          i = j;
+          continue;
+        }
+        if (isIdStart(c)) {
+          k = i + 1;
+          while (k < n && isIdPart(src.charAt(k))) k++;
+          if (src.charAt(k) === '.' && k + 1 < n && isIdStart(src.charAt(k + 1))) {
+            k++;
+            while (k < n && isIdPart(src.charAt(k))) k++;
+          }
+          out.push({ t: 'id', v: src.slice(i, k), pos: i });
+          i = k;
+          continue;
+        }
+        if (c === '+' || c === '-' || c === '*' || c === '/' || c === '^') { out.push({ t: 'op', v: c, pos: i }); i++; continue; }
+        if (c === '(') { out.push({ t: 'lp', pos: i }); i++; continue; }
+        if (c === ')') { out.push({ t: 'rp', pos: i }); i++; continue; }
+        if (c === ',') { out.push({ t: 'comma', pos: i }); i++; continue; }
+        fail("Illegal character '" + c + "' at position " + (i + 1) + '.', i);
+      }
+      return out;
+    }
+
+    function checkVar(name, pos, opts) {
+      var m, who, key, i, ok;
+      if (name === 'power') return;
+      m = /^([atp])\.([A-Za-z_][A-Za-z0-9_]*)$/.exec(name);
+      if (!m) fail("Unknown variable '" + name + "'. " + VAR_HELP, pos);
+      who = m[1]; key = m[2];
+      if (who === 'p') {
+        if (opts && opts.params) {
+          ok = false;
+          for (i = 0; i < opts.params.length; i++) { if (opts.params[i] === key) ok = true; }
+          if (!ok) fail("Unknown parameter 'p." + key + "'. Declared parameters: " + (opts.params.length ? opts.params.join(', ') : 'none') + '.', pos);
+        }
+        return;
+      }
+      if (key === 'level') return;
+      if (!/^[a-z][a-z0-9]*$/.test(key)) fail("Unknown variable '" + name + "'. " + VAR_HELP, pos);
+      if (opts && opts.stats) {
+        ok = false;
+        for (i = 0; i < opts.stats.length; i++) { if (opts.stats[i] === key) ok = true; }
+        if (!ok) fail("Unknown stat '" + key + "' in " + name + '. Declared stats: ' + (opts.stats.length ? opts.stats.join(', ') : 'none') + '.', pos);
+      }
+    }
+
+    // Tokenizer plus shunting yard parser. Returns an AST of {type:'num'|'var'|'un'|'bin'|'call'}.
+    function parse(src, opts) {
+      var toks = tokenize(src), out = [], ops = [], prev = 'start', i, t, top, nxt, prec, right, ar, argc, args, v;
+      if (!toks.length) fail('The expression is empty.');
+      function popApply() {
+        var op = ops.pop(), r, l;
+        if (op.k === 'un') {
+          if (out.length < 1) fail("Missing operand after '" + op.v + "' at position " + (op.pos + 1) + '.', op.pos);
+          out.push({ type: 'un', op: op.v, arg: out.pop() });
+        } else {
+          if (out.length < 2) fail("Missing operand for '" + op.v + "' at position " + (op.pos + 1) + '.', op.pos);
+          r = out.pop(); l = out.pop();
+          out.push({ type: 'bin', op: op.v, left: l, right: r });
+        }
+      }
+      function unwindToMarker() {
+        while (ops.length && ops[ops.length - 1].k !== 'lp' && ops[ops.length - 1].k !== 'fn') popApply();
+      }
+      for (i = 0; i < toks.length; i++) {
+        t = toks[i];
+        if (t.t === 'num') {
+          if (prev === 'operand') fail("Missing operator before '" + t.v + "' at position " + (t.pos + 1) + '.', t.pos);
+          out.push({ type: 'num', value: t.v });
+          prev = 'operand';
+        } else if (t.t === 'id') {
+          if (prev === 'operand') fail("Missing operator before '" + t.v + "' at position " + (t.pos + 1) + '.', t.pos);
+          nxt = toks[i + 1];
+          if (nxt && nxt.t === 'lp') {
+            if (!has(FUNCS, t.v)) fail("Unknown function '" + t.v + "'. Allowed functions: " + FUNC_NAMES.join(', ') + '.', t.pos);
+            ops.push({ k: 'fn', v: t.v, argc: 0, pos: t.pos });
+            i++;
+            prev = 'open';
+          } else {
+            checkVar(t.v, t.pos, opts);
+            out.push({ type: 'var', name: t.v });
+            prev = 'operand';
+          }
+        } else if (t.t === 'lp') {
+          if (prev === 'operand') fail("Missing operator before '(' at position " + (t.pos + 1) + '.', t.pos);
+          ops.push({ k: 'lp', pos: t.pos });
+          prev = 'open';
+        } else if (t.t === 'rp') {
+          if (prev === 'op' || prev === 'comma') fail("Missing operand before ')' at position " + (t.pos + 1) + '.', t.pos);
+          unwindToMarker();
+          if (!ops.length) fail("Unmatched ')' at position " + (t.pos + 1) + '.', t.pos);
+          top = ops.pop();
+          if (top.k === 'lp') {
+            if (prev === 'open') fail("Empty parentheses at position " + (t.pos + 1) + '.', t.pos);
+          } else {
+            argc = prev === 'open' ? 0 : top.argc + 1;
+            ar = FUNCS[top.v];
+            if (argc < ar[0] || argc > ar[1]) {
+              fail(top.v + ' takes ' + (ar[0] === ar[1] ? 'exactly ' + ar[0] : 'at least ' + ar[0]) + ' argument' + (ar[0] === 1 ? '' : 's') + ' but got ' + argc + '.', top.pos);
+            }
+            args = out.splice(out.length - argc, argc);
+            out.push({ type: 'call', name: top.v, args: args });
+          }
+          prev = 'operand';
+        } else if (t.t === 'comma') {
+          if (prev !== 'operand') fail("Missing argument before ',' at position " + (t.pos + 1) + '.', t.pos);
+          unwindToMarker();
+          if (!ops.length || ops[ops.length - 1].k !== 'fn') fail("Unexpected ',' at position " + (t.pos + 1) + '. Commas only separate function arguments.', t.pos);
+          ops[ops.length - 1].argc++;
+          prev = 'comma';
+        } else {
+          v = t.v;
+          if (prev === 'operand') {
+            prec = PREC[v]; right = v === '^';
+            while (ops.length) {
+              top = ops[ops.length - 1];
+              if (top.k !== 'bin' && top.k !== 'un') break;
+              if (top.prec > prec || (top.prec === prec && !right)) popApply(); else break;
+            }
+            ops.push({ k: 'bin', v: v, prec: prec, pos: t.pos });
+            prev = 'op';
+          } else {
+            if (v !== '-' && v !== '+') fail("Unexpected operator '" + v + "' at position " + (t.pos + 1) + '.', t.pos);
+            ops.push({ k: 'un', v: v, prec: 3, pos: t.pos });
+            prev = 'op';
+          }
+        }
+      }
+      if (prev !== 'operand') fail(prev === 'start' ? 'The expression is empty.' : 'The expression ends unexpectedly.');
+      while (ops.length) {
+        top = ops[ops.length - 1];
+        if (top.k === 'lp' || top.k === 'fn') fail("Unmatched '(' at position " + (top.pos + 1) + '.', top.pos);
+        popApply();
+      }
+      if (out.length !== 1) fail('The expression is not well formed.');
+      return out[0];
+    }
+
+    function finite(v, what) {
+      if (typeof v !== 'number' || !isFinite(v)) fail('The result of ' + what + ' is not a finite number.');
+      return v;
+    }
+    function lookup(scope, name) {
+      var dot, who, key, bag, v;
+      if (name === 'power') v = scope ? scope.power : undefined;
+      else {
+        dot = name.indexOf('.'); who = name.slice(0, dot); key = name.slice(dot + 1);
+        bag = scope ? (who === 'a' ? scope.a : who === 't' ? scope.t : scope.p) : undefined;
+        v = has(bag, key) ? bag[key] : undefined;
+      }
+      if (typeof v !== 'number' || !isFinite(v)) fail('No value was supplied for ' + name + '.');
+      return v;
+    }
+    function ev(node, scope) {
+      var l, r, v, args, k;
+      switch (node.type) {
+        case 'num': return node.value;
+        case 'var': return lookup(scope, node.name);
+        case 'un': v = ev(node.arg, scope); return node.op === '-' ? -v : v;
+        case 'bin':
+          l = ev(node.left, scope); r = ev(node.right, scope);
+          if (node.op === '+') v = l + r;
+          else if (node.op === '-') v = l - r;
+          else if (node.op === '*') v = l * r;
+          else if (node.op === '/') { if (r === 0) fail('Division by zero.'); v = l / r; }
+          else v = Math.pow(l, r);
+          return finite(v, "'" + node.op + "'");
+        case 'call':
+          args = [];
+          for (k = 0; k < node.args.length; k++) args.push(ev(node.args[k], scope));
+          switch (node.name) {
+            case 'min': v = Math.min.apply(null, args); break;
+            case 'max': v = Math.max.apply(null, args); break;
+            case 'floor': v = Math.floor(args[0]); break;
+            case 'ceil': v = Math.ceil(args[0]); break;
+            case 'round': v = Math.round(args[0]); break;
+            case 'sqrt': if (args[0] < 0) fail('sqrt needs a value that is not negative.'); v = Math.sqrt(args[0]); break;
+            case 'pow': v = Math.pow(args[0], args[1]); break;
+            default:
+              if (args[1] > args[2]) fail('clamp needs its low bound to be at most its high bound.');
+              v = Math.min(Math.max(args[0], args[1]), args[2]);
+          }
+          return finite(v, node.name + '()');
+        default:
+          return fail('The expression is not well formed.');
+      }
+    }
+    // scope = {a:{level, <stat>...}, t:{level, <stat>...}, power, p:{<param>...}}
+    function evaluate(astOrSrc, scope, opts) {
+      var ast = typeof astOrSrc === 'string' ? parse(astOrSrc, opts) : astOrSrc;
+      return finite(ev(ast, scope || {}), 'the expression');
+    }
+    // Names of every variable an AST uses, sorted and unique.
+    function variables(ast) {
+      var seen = {}, list = [];
+      (function walk(n) {
+        var i;
+        if (!n) return;
+        if (n.type === 'var') { if (!seen[n.name]) { seen[n.name] = 1; list.push(n.name); } }
+        else if (n.type === 'un') walk(n.arg);
+        else if (n.type === 'bin') { walk(n.left); walk(n.right); }
+        else if (n.type === 'call') { for (i = 0; i < n.args.length; i++) walk(n.args[i]); }
+      })(ast);
+      return list.sort();
+    }
+  return { parse: parse, evaluate: evaluate, variables: variables, FUNCTIONS: FUNC_NAMES.slice(), MAX_LEN: MAX_LEN, VAR_HELP: VAR_HELP };
+  })();
+
   // ---------------------------------------------------------------- dev helpers
   Kit.dev = {
     // Registers a throwaway type covering every field type and opens it in the form renderer.
@@ -3681,6 +4055,10 @@ details.cx-block > .cx-block-sum { padding: 0; }
       }
       panel.appendChild(row);
     }
+    var sysRow = U.el('div', 'btn-row'); sysRow.style.margin = '4px 0 12px';
+    var sysBtn = U.el('button', 'btn', Kit.icon('gear') + '<span>' + (locked ? 'View systems' : 'Edit stats, elements, relations, taxonomy') + '</span>'); sysBtn.type = 'button';
+    sysBtn.addEventListener('click', function () { if (window.WS.rules && window.WS.rules.openSystems) window.WS.rules.openSystems('stats'); });
+    sysRow.appendChild(sysBtn); panel.appendChild(sysRow);
     var host = U.el('div');
     panel.appendChild(host);
     st.ctl = Kit.form.render(host, sec.type.name, rs, function () { touch(); refreshTags(); }, { readOnly: locked });
@@ -4912,7 +5290,35 @@ details.cx-block > .cx-block-sum { padding: 0; }
 // === WS:RULES BEGIN ===
 (function () {
   'use strict';
+  var U = Kit.util;
   var WSX = window.WS.rules = { id: 'rules' };
+  var UI_KEY = 'saga146:rules:ui';
+  var STAT_PATH = 'charter.ruleset.stats', ELEM_PATH = 'charter.ruleset.elements', TAX_PATH = 'charter.ruleset.taxonomy';
+  var KEY_RE = /^[a-z][a-z0-9]*$/;
+  var uidn = 0;
+
+  function cur() { return Kit.bundle.current(); }
+  function rsOf(b) { b = b || cur(); return b && b.charter && U.isObj(b.charter.ruleset) ? b.charter.ruleset : {}; }
+  function alive(n) { return !!n && document.contains(n); }
+  function el(tag, cls, html) { return U.el(tag, cls, html); }
+  function esc(s) { return U.esc(s); }
+  function hasOwn(o, k) { return o !== null && typeof o === 'object' && Object.prototype.hasOwnProperty.call(o, k); }
+  function uiGet() { var s = Kit.store.get(UI_KEY, {}); return U.isObj(s) ? s : {}; }
+  function uiSet(patch) { var s = uiGet(); Object.keys(patch).forEach(function (k) { s[k] = patch[k]; }); Kit.store.set(UI_KEY, s); return s; }
+  function button(label, icon, cls, fn) {
+    var b = el('button', 'btn' + (cls ? ' ' + cls : ''), (icon ? Kit.icon(icon) : '') + '<span>' + esc(label) + '</span>');
+    b.type = 'button';
+    if (fn) b.addEventListener('click', fn);
+    return b;
+  }
+  function iconButton(icon, label, fn, cls) {
+    var b = el('button', 'btn btn-ghost btn-icon' + (cls ? ' ' + cls : ''), Kit.icon(icon));
+    b.type = 'button'; b.setAttribute('aria-label', label); b.title = label;
+    if (fn) b.addEventListener('click', fn);
+    return b;
+  }
+  function cap1(s) { s = String(s || ''); return s.charAt(0).toUpperCase() + s.slice(1); }
+
   WSX.canEnter = function (b) {
     if (!b || !b.charter.locked) return 'Lock the Charter to open Rules.';
     if (!b.codex.version || !Object.keys(b.codex.types || {}).length) return 'Generate the Codex to open Rules.';
@@ -4920,17 +5326,1629 @@ details.cx-block > .cx-block-sum { padding: 0; }
     if (!c.ok) return c.state === 'stale' ? 'Regenerate the Codex after the Charter amendment to open Rules.' : 'Fix the Codex issues to open Rules.';
     return true;
   };
-  WSX.render = function (host) {
-    host.appendChild(Kit.ui.stub({ title: 'Rules', icon: 'sword', lead: 'Systems and content: stats, elements, formulas, abilities, gear, characters, enemies, gambits, troops, shops, and the Expected Party State.', status: 'Rules are being forged.' }));
+
+  // ---------------------------------------------------------------- formula library
+  // Mirror of the template registry that ENGINE:BATTLE implements in Pass 5. Parameter names and defaults are the
+  // contract. Each template is also written as a safe expression so the previews and the engine can be compared.
+  var FORMULA_ORDER = ['phys.ff6', 'mag.ff6', 'phys.sub', 'mag.flat', 'heal.std', 'var.std', 'exp.curve', 'ap.curve', 'atb.fill'];
+  var FORMULA_LIB = {
+    'phys.ff6': {
+      id: 'phys.ff6', role: 'phys', kind: 'damage', label: 'Physical damage, FF6 style',
+      expr: 'max(p.floor, floor((power + a.level * a.level * a.str / p.levelDiv) * (p.defBase - min(t.def, p.defBase - 1)) / p.defBase * p.mult))',
+      params: { levelDiv: 256, defBase: 256, mult: 1, floor: 1 },
+      note: 'Base damage grows with the square of the attacker level, then the target defense scales it down.'
+    },
+    'mag.ff6': {
+      id: 'mag.ff6', role: 'mag', kind: 'damage', label: 'Magic damage, FF6 style',
+      expr: 'max(p.floor, floor((power * p.powerMult + a.level * a.mag * power / p.levelDiv) * (p.defBase - min(t.mdef, p.defBase - 1)) / p.defBase))',
+      params: { powerMult: 4, levelDiv: 32, defBase: 256, floor: 1 },
+      note: 'Spell power dominates. Level and magic add to it, and magic defense scales the total down.'
+    },
+    'phys.sub': {
+      id: 'phys.sub', role: 'phys', kind: 'damage', label: 'Physical damage, subtractive',
+      expr: 'max(p.floor, floor(a.str * p.atkMult + power - t.def * p.defMult))',
+      params: { atkMult: 1, defMult: 0.5, floor: 1 },
+      note: 'Attack plus power minus a share of defense. Simple and easy to balance by hand.'
+    },
+    'mag.flat': {
+      id: 'mag.flat', role: 'mag', kind: 'damage', label: 'Magic damage, flat',
+      expr: 'max(p.floor, floor(power + a.mag * p.magMult - t.mdef * p.mdefMult))',
+      params: { magMult: 1, mdefMult: 0.5, floor: 1 },
+      note: 'Spell power plus magic minus a share of magic defense.'
+    },
+    'heal.std': {
+      id: 'heal.std', role: 'heal', kind: 'heal', label: 'Healing, standard',
+      expr: 'max(p.floor, floor((power + a.mag * p.magMult) * p.mult))',
+      params: { magMult: 2, mult: 1, floor: 1 },
+      note: 'Spell power plus magic, then a multiplier. Heal inversion for undead is applied by the engine.'
+    },
+    'var.std': {
+      id: 'var.std', role: 'var', kind: 'variance', label: 'Damage variance',
+      expr: '1 + p.spread * (2 * p.roll - 1)',
+      params: { spread: 0.1, roll: 0.5 },
+      note: 'A multiplier around one. The engine feeds roll from the seeded random stream, between 0 and 1.'
+    },
+    'exp.curve': {
+      id: 'exp.curve', role: 'exp', kind: 'curve', label: 'EXP needed to reach a level',
+      expr: 'floor(p.base * pow(max(a.level - 1, 0), p.exponent))',
+      params: { base: 40, exponent: 2.1 },
+      note: 'Total EXP required to reach level a.level. Sweep the level to see the whole curve.'
+    },
+    'ap.curve': {
+      id: 'ap.curve', role: 'ap', kind: 'curve', label: 'AP needed to advance a level',
+      expr: 'floor(p.base * pow(p.growth, max(a.level - 1, 0)))',
+      params: { base: 100, growth: 2 },
+      note: 'AP needed to move from level a.level to the next one. Used for materia levels.'
+    },
+    'atb.fill': {
+      id: 'atb.fill', role: 'atb', kind: 'rate', label: 'ATB gauge fill per tick',
+      expr: 'floor((a.spd + p.spdOffset) * p.rate)',
+      params: { spdOffset: 20, rate: 8 },
+      note: 'Gauge units added each tick. The gauge holds 65536 units.'
+    }
   };
-  Kit.mount('rules', { title: 'Rules', icon: 'sword', canEnter: WSX.canEnter, render: WSX.render });
+  WSX.FORMULA_LIB = FORMULA_LIB;
+  WSX.FORMULA_ORDER = FORMULA_ORDER;
+
+  function statKeys(b) {
+    var st = rsOf(b).stats;
+    return (Array.isArray(st) ? st : []).map(function (s) { return U.isObj(s) ? String(s.key || '') : ''; }).filter(Boolean);
+  }
+  function numericParams(o) {
+    var out = {};
+    if (U.isObj(o)) Object.keys(o).forEach(function (k) { if (typeof o[k] === 'number' && isFinite(o[k])) out[k] = o[k]; });
+    return out;
+  }
+  function libSource(id) {
+    var l = FORMULA_LIB[id];
+    return l ? { id: l.id, label: l.label, kind: l.kind, expr: l.expr, params: U.clone(l.params), template: l.id, note: l.note } : null;
+  }
+  // A frm_ record resolves to an expression plus its parameters. A template wins over an expression.
+  function recordSource(rec) {
+    if (!U.isObj(rec)) return null;
+    var over = numericParams(rec.params), params;
+    if (rec.template && FORMULA_LIB[rec.template]) {
+      var lib = FORMULA_LIB[rec.template];
+      params = Object.assign(U.clone(lib.params), over);
+      return { id: rec.id, label: rec.name || lib.label, kind: lib.kind, expr: lib.expr, params: params, template: rec.template, note: lib.note };
+    }
+    if (typeof rec.expr === 'string' && rec.expr.trim()) return { id: rec.id, label: rec.name || 'Formula', kind: 'custom', expr: rec.expr, params: over, template: null };
+    return null;
+  }
+  // id may be a template id or a frm_ record id.
+  WSX.formulaSource = function (id) {
+    if (FORMULA_LIB[id]) return libSource(id);
+    if (typeof id === 'string' && Kit.ids.isValid(id) && Kit.ids.prefixOf(id) === 'frm_') return recordSource(Kit.records.get(id));
+    return null;
+  };
+  var astCache = {}, astCount = 0;
+  function parseCached(expr) {
+    if (astCache[expr]) return astCache[expr];
+    var ast = Kit.expr.parse(expr);
+    if (astCount > 300) { astCache = {}; astCount = 0; }
+    astCache[expr] = ast; astCount++;
+    return ast;
+  }
+  // scope = {a:{...}, t:{...}, power}. The formula parameters are added as scope.p.
+  WSX.evalFormula = function (id, scope) {
+    var src = WSX.formulaSource(id);
+    if (!src) throw new Error('No formula found for ' + id + '.');
+    var sc = { a: scope && scope.a || {}, t: scope && scope.t || {}, power: scope && scope.power != null ? scope.power : 0, p: src.params };
+    return Kit.expr.evaluate(parseCached(src.expr), sc);
+  };
+  WSX.roleId = function (role) {
+    var fs = rsOf().formulaSet;
+    return U.isObj(fs) && typeof fs[role] === 'string' && fs[role] ? fs[role] : null;
+  };
+  // Evaluates the formula the ruleset assigns to a role (phys, mag, heal, exp, ap, atb, var).
+  WSX.evalRole = function (role, scope) {
+    var id = WSX.roleId(role);
+    if (!id) throw new Error('The ruleset has no formula for the ' + role + ' role.');
+    return WSX.evalFormula(id, scope);
+  };
+
+  // ---------------------------------------------------------------- usage and staleness
+  function walkFields(obj, fields, base, cb) {
+    if (!U.isObj(obj)) return;
+    (fields || []).forEach(function (f) {
+      if (!f || !f.key) return;
+      var v = obj[f.key];
+      if (v === undefined) return;
+      var p = base ? base + '.' + f.key : f.key;
+      cb(f, v, p);
+      if (f.type === 'object' && Array.isArray(f.of)) walkFields(v, f.of, p, cb);
+      else if (f.type === 'list' && Array.isArray(f.of) && Array.isArray(v)) v.forEach(function (it, i) { walkFields(it, f.of, p + '[' + i + ']', cb); });
+    });
+  }
+  // What depends on a stat key, an element key, or a taxonomy value. Used to lock keys and to warn before deleting.
+  WSX.usage = function (kind, key) {
+    var b = cur(), out = [], types = Kit.codex.types(b), idx = Kit.index(b), r = rsOf(b);
+    function add(rid, name, path) { out.push({ recordId: rid, name: name, path: path }); }
+    if (kind === 'element') {
+      (Array.isArray(r.elementRelations) ? r.elementRelations : []).forEach(function (x, i) {
+        if (U.isObj(x) && (x.a === key || x.b === key)) add('charter:ruleset', 'Element relation ' + (i + 1), 'elementRelations[' + i + ']');
+      });
+      if (U.isObj(r.taxonomy) && Array.isArray(r.taxonomy.values) && r.taxonomy.values.indexOf(key) >= 0) add('charter:ruleset', 'Taxonomy value', 'taxonomy.values');
+    }
+    var re = kind === 'stat' ? new RegExp('\\b[at]\\.' + key + '\\b') : null;
+    Object.keys(idx.byId).forEach(function (id) {
+      var e = idx.byId[id], info = Kit.codex.prefixInfo(e.prefix);
+      if (!info || info.ns !== 'rules') return;
+      var tn = Kit.codex.typeFor(e.prefix, b), td = tn ? types[tn] : null;
+      if (!td) return;
+      walkFields(e.record, td.fields, '', function (desc, val, path) {
+        if (kind === 'stat') {
+          if (desc.type === 'table' && desc.rowsFrom === STAT_PATH && hasOwn(val, key)) add(id, e.name, path + '.' + key);
+          else if (desc.type === 'formula' && typeof val === 'string' && re.test(val)) add(id, e.name, path);
+        } else if (kind === 'element') {
+          if (desc.type === 'table' && desc.rowsFrom === ELEM_PATH && hasOwn(val, key)) add(id, e.name, path + '.' + key);
+          else if (desc.type === 'enum' && desc.enumFrom === ELEM_PATH && val === key) add(id, e.name, path);
+        } else if (kind === 'taxon') {
+          if (desc.type === 'enum' && desc.enumFrom === TAX_PATH && val === key) add(id, e.name, path);
+        }
+      });
+    });
+    return out;
+  };
+  function usageText(list) {
+    var names = [], seen = {};
+    list.forEach(function (u) { if (!seen[u.name]) { seen[u.name] = 1; names.push(u.name); } });
+    return list.length + ' place' + (list.length === 1 ? '' : 's') + ' use it: ' + names.slice(0, 5).join(', ') + (names.length > 5 ? ', and more.' : '.');
+  }
+  // Records an amendment touched that have not been reviewed yet. Maps id to {need, hit}.
+  function staleMap(b) {
+    var m = {}, ams = b && b.charter && Array.isArray(b.charter.amendments) ? b.charter.amendments : [];
+    if (!window.WS.charter || !window.WS.charter.impact) return m;
+    ams.forEach(function (am) {
+      window.WS.charter.impact(b, am.changedPaths || [], am.to).forEach(function (r) { m[r.id] = { need: am.to, hit: r.dependsOn }; });
+    });
+    return m;
+  }
+  WSX.staleIds = function () { return Object.keys(staleMap(cur())); };
+  function refsTo(id) {
+    var out = [], idx = Kit.index();
+    Object.keys(idx.byId).forEach(function (rid) {
+      if (rid === id) return;
+      var e = idx.byId[rid];
+      if (JSON.stringify(e.record).indexOf('"' + id + '"') >= 0) out.push(e.name);
+    });
+    if (JSON.stringify(rsOf().formulaSet || {}).indexOf('"' + id + '"') >= 0) out.push('Ruleset formula set');
+    return out;
+  }
+
+  // ---------------------------------------------------------------- systems editors (write to charter.ruleset)
+  var RS = WSX.systems = {};
+  var ELEM_COLORS = ['#e4572e', '#3a86c8', '#8a6a3d', '#9ad1d4', '#f2d16b', '#7b4a9e', '#6fc7b6', '#f07a6e'];
+
+  function ensureRuleset() {
+    var b = cur();
+    if (!U.isObj(b.charter.ruleset)) b.charter.ruleset = {};
+    return b.charter.ruleset;
+  }
+  function sysCtx(onChange) {
+    return {
+      readOnly: !!cur().charter.locked,
+      rs: ensureRuleset,
+      changed: function () { Kit.index.invalidate(); Kit.bundle.touch('rules-systems'); if (onChange) onChange(); }
+    };
+  }
+  function mkInput(o) {
+    var i = el('input', 'inp' + (o.mono ? ' mono' : ''));
+    i.type = o.type || 'text';
+    if (o.type === 'number') { i.inputMode = o.step === 1 ? 'numeric' : 'decimal'; i.step = o.step != null ? o.step : 'any'; if (o.min != null) i.min = o.min; if (o.max != null) i.max = o.max; }
+    i.value = o.value == null ? '' : o.value;
+    if (o.label) i.setAttribute('aria-label', o.label);
+    if (o.placeholder) i.placeholder = o.placeholder;
+    if (o.maxLength) i.maxLength = o.maxLength;
+    if (o.mono) i.spellcheck = false;
+    if (o.readOnly) i.readOnly = true;
+    if (o.onInput) i.addEventListener('input', function () { o.onInput(i.value, i); });
+    return i;
+  }
+  function mkSelect(options, value, o) {
+    var s = el('select', 'inp');
+    s.appendChild(new Option(o.placeholder || 'Choose...', ''));
+    options.forEach(function (x) { s.appendChild(new Option(x.label, x.value)); });
+    if (value && !options.some(function (x) { return x.value === value; })) s.appendChild(new Option(value + ' (not declared)', value));
+    s.value = value || '';
+    if (o.label) s.setAttribute('aria-label', o.label);
+    if (o.readOnly) s.disabled = true;
+    if (o.onChange) s.addEventListener('change', function () { o.onChange(s.value); });
+    return s;
+  }
+  function fieldBox(labelText, node, cls) {
+    var f = el('div', 'rl-f' + (cls ? ' ' + cls : ''));
+    var l = el('label', null, esc(labelText));
+    if (node.tagName === 'INPUT' || node.tagName === 'SELECT') { var id = 'rlf_' + (++uidn); node.id = id; l.htmlFor = id; }
+    f.appendChild(l); f.appendChild(node);
+    return f;
+  }
+  function colorControl(value, readOnly, label, onChange) {
+    var wrap = el('div', 'color-row');
+    var c = el('input'); c.type = 'color'; c.setAttribute('aria-label', label + ' swatch');
+    c.value = /^#[0-9a-fA-F]{6}$/.test(value || '') ? value : '#888888';
+    var t = el('input', 'inp mono'); t.type = 'text'; t.maxLength = 7; t.spellcheck = false; t.placeholder = '#rrggbb'; t.value = value || '';
+    t.setAttribute('aria-label', label + ' hex');
+    if (readOnly) { c.disabled = true; t.readOnly = true; }
+    c.addEventListener('input', function () { t.value = c.value; onChange(c.value); });
+    t.addEventListener('input', function () { var v = t.value.trim(); if (/^#[0-9a-fA-F]{6}$/.test(v)) c.value = v; onChange(v); });
+    wrap.appendChild(c); wrap.appendChild(t);
+    return wrap;
+  }
+  function paintMsgs(refs, probs) {
+    refs.forEach(function (r, i) {
+      var m = probs[i] || [];
+      U.clear(r.msg);
+      r.row.classList.toggle('bad', m.length > 0);
+      m.forEach(function (t) { r.msg.appendChild(el('div', 'msg msg-' + (t.level || 'error'), esc(t.text || t))); });
+    });
+  }
+  function rowControls(ctx, arr, i, name, repaint, onDelete) {
+    var box = el('div', 'rl-ctrls');
+    if (ctx.readOnly) return box;
+    box.appendChild(iconButton('up', 'Move ' + name + ' up', function () { if (i > 0) { var x = arr[i - 1]; arr[i - 1] = arr[i]; arr[i] = x; ctx.changed(); repaint(); } }));
+    box.appendChild(iconButton('down', 'Move ' + name + ' down', function () { if (i < arr.length - 1) { var x = arr[i + 1]; arr[i + 1] = arr[i]; arr[i] = x; ctx.changed(); repaint(); } }));
+    box.appendChild(iconButton('trash', 'Delete ' + name, onDelete));
+    return box;
+  }
+  function keyPrompt(title, label, taken, maxLen) {
+    return Kit.ui.prompt({
+      title: title, label: label, okLabel: 'Add',
+      placeholder: 'lowercase letters and digits',
+      validate: function (v) {
+        v = v.trim();
+        if (!KEY_RE.test(v)) return 'Use lowercase letters and digits, starting with a letter.';
+        if (v.length > maxLen) return 'Use at most ' + maxLen + ' characters.';
+        if (taken.indexOf(v) >= 0) return 'That key is already in use.';
+        return null;
+      }
+    });
+  }
+  function focusRow(host, idx) {
+    var rows = host.querySelectorAll('.rl-row');
+    var row = rows[idx];
+    if (!row) return;
+    row.scrollIntoView({ block: 'center' });
+    var f = row.querySelector('input.inp:not([readonly])');
+    if (f) { try { f.focus({ preventScroll: true }); } catch (e) {} }
+  }
+
+  // Stats
+  function statProblems(arr) {
+    var out = [], seen = {};
+    arr.forEach(function (s) {
+      var m = [];
+      if (U.isObj(s)) {
+        var k = String(s.key || '');
+        if (!k) m.push('Give the stat a key.');
+        else if (!KEY_RE.test(k)) m.push('Key must be lowercase letters and digits, starting with a letter.');
+        else if (seen[k]) m.push('Another stat already uses the key "' + k + '".');
+        if (k) seen[k] = 1;
+        if (!String(s.label || '').trim()) m.push('Give the stat a label.');
+        if (typeof s.min === 'number' && typeof s.max === 'number' && s.min > s.max) m.push('Max must be at least min.');
+      }
+      out.push(m);
+    });
+    return out;
+  }
+  RS.stats = function (host, ctx) {
+    U.clear(host);
+    var r = ctx.rs(), arr = Array.isArray(r.stats) ? r.stats : [], refs = [];
+    host.appendChild(el('p', 'muted rl-lead', 'Stats are the numbers every character and enemy carries. Formulas read them as a.<key> and t.<key>. A key is permanent once a record or formula uses it. Labels can change at any time.'));
+    var list = el('div', 'rl-rows');
+    host.appendChild(list);
+    function repaint() { RS.stats(host, ctx); }
+    function paint() { paintMsgs(refs, statProblems(arr)); }
+    if (!arr.length) list.appendChild(el('div', 'empty-line', ctx.readOnly ? 'No stats are declared.' : 'No stats yet. Load the defaults or add your own.'));
+    arr.forEach(function (s, i) {
+      if (!U.isObj(s)) return;
+      var row = el('div', 'rl-row'), msg = el('div', 'rl-msgs');
+      var used = ctx.readOnly ? [] : WSX.usage('stat', s.key);
+      var keyNode;
+      if (ctx.readOnly || used.length) {
+        keyNode = el('div', 'rl-keycode', esc(s.key));
+        if (used.length) keyNode.title = 'Locked. ' + usageText(used);
+      } else keyNode = mkInput({ value: s.key, label: 'Stat key ' + (i + 1), maxLength: 12, mono: true, onInput: function (v) { s.key = v.trim(); ctx.changed(); paint(); } });
+      row.appendChild(fieldBox('Key', keyNode, 'sm'));
+      row.appendChild(fieldBox('Label', mkInput({ value: s.label, label: 'Label for ' + s.key, maxLength: 30, readOnly: ctx.readOnly, onInput: function (v) { s.label = v; ctx.changed(); paint(); } }), 'lg'));
+      ['min', 'max'].forEach(function (k) {
+        row.appendChild(fieldBox(cap1(k), mkInput({
+          type: 'number', step: 1, min: 0, max: 99999, value: s[k], label: cap1(k) + ' for ' + s.key, readOnly: ctx.readOnly,
+          onInput: function (v) { if (v === '') delete s[k]; else s[k] = Number(v); ctx.changed(); paint(); }
+        }), 'sm'));
+      });
+      row.appendChild(rowControls(ctx, arr, i, 'stat ' + s.key, repaint, function () {
+        Kit.ui.confirm({
+          title: 'Delete the stat "' + s.key + '"?', message: 'It is removed from the ruleset.',
+          detail: used.length ? usageText(used) + ' Those places show errors until you fix them.' : '', okLabel: 'Delete', danger: true
+        }).then(function (ok) { if (!ok) return; arr.splice(i, 1); ctx.changed(); repaint(); });
+      }));
+      row.appendChild(msg);
+      list.appendChild(row);
+      refs.push({ row: row, msg: msg });
+    });
+    paint();
+    if (!ctx.readOnly) {
+      var bar = el('div', 'btn-row rl-addbar');
+      bar.appendChild(button('Add stat', 'plus', 'btn-primary', function () {
+        keyPrompt('Add a stat', 'Stat key', statKeys(cur()), 12).then(function (k) {
+          if (k == null) return;
+          k = k.trim();
+          var a2 = Array.isArray(r.stats) ? r.stats : (r.stats = []);
+          a2.push({ key: k, label: cap1(k), min: 0, max: 99 });
+          ctx.changed(); repaint(); focusRow(host, a2.length - 1);
+        });
+      }));
+      if (!arr.length && window.WS.charter && window.WS.charter.defaultStats) {
+        bar.appendChild(button('Load default stats', null, '', function () { r.stats = window.WS.charter.defaultStats(); ctx.changed(); repaint(); }));
+      }
+      host.appendChild(bar);
+    }
+  };
+
+  // Elements
+  function elementProblems(arr) {
+    var out = [], seen = {};
+    arr.forEach(function (s) {
+      var m = [];
+      if (U.isObj(s)) {
+        var k = String(s.key || '');
+        if (!k) m.push('Give the element a key.');
+        else if (!KEY_RE.test(k)) m.push('Key must be lowercase letters and digits, starting with a letter.');
+        else if (seen[k]) m.push('Another element already uses the key "' + k + '".');
+        if (k) seen[k] = 1;
+        if (!String(s.label || '').trim()) m.push('Give the element a label.');
+        if (s.color && !/^#[0-9a-fA-F]{6}$/.test(s.color)) m.push('Color must be a hex value like #a1b2c3.');
+      }
+      out.push(m);
+    });
+    return out;
+  }
+  function elemList(r) { return (Array.isArray(r.elements) ? r.elements : []).filter(U.isObj); }
+  RS.elements = function (host, ctx) {
+    U.clear(host);
+    var r = ctx.rs(), arr = Array.isArray(r.elements) ? r.elements : [], refs = [];
+    host.appendChild(el('p', 'muted rl-lead', 'Elements color abilities, weather, and enemy families. Relations and the taxonomy build on them. A key is permanent once anything uses it.'));
+    var list = el('div', 'rl-rows');
+    host.appendChild(list);
+    function repaint() { RS.elements(host, ctx); }
+    function paint() { paintMsgs(refs, elementProblems(arr)); }
+    if (!arr.length) list.appendChild(el('div', 'empty-line', ctx.readOnly ? 'No elements are declared.' : 'No elements yet. Add the first one.'));
+    arr.forEach(function (s, i) {
+      if (!U.isObj(s)) return;
+      var row = el('div', 'rl-row'), msg = el('div', 'rl-msgs');
+      var used = ctx.readOnly ? [] : WSX.usage('element', s.key);
+      var keyNode;
+      if (ctx.readOnly || used.length) {
+        keyNode = el('div', 'rl-keycode', esc(s.key));
+        if (used.length) keyNode.title = 'Locked. ' + usageText(used);
+      } else keyNode = mkInput({ value: s.key, label: 'Element key ' + (i + 1), maxLength: 16, mono: true, onInput: function (v) { s.key = v.trim(); ctx.changed(); paint(); } });
+      row.appendChild(fieldBox('Key', keyNode, 'sm'));
+      row.appendChild(fieldBox('Label', mkInput({ value: s.label, label: 'Label for ' + s.key, maxLength: 30, readOnly: ctx.readOnly, onInput: function (v) { s.label = v; ctx.changed(); paint(); } }), 'lg'));
+      row.appendChild(fieldBox('Color', colorControl(s.color, ctx.readOnly, 'Color for ' + s.key, function (v) { if (v) s.color = v; else delete s.color; ctx.changed(); paint(); }), 'lg'));
+      row.appendChild(rowControls(ctx, arr, i, 'element ' + s.key, repaint, function () {
+        var rels = (Array.isArray(r.elementRelations) ? r.elementRelations : []).filter(function (x) { return U.isObj(x) && (x.a === s.key || x.b === s.key); }).length;
+        var inTax = U.isObj(r.taxonomy) && Array.isArray(r.taxonomy.values) && r.taxonomy.values.indexOf(s.key) >= 0;
+        var others = used.filter(function (u) { return u.recordId !== 'charter:ruleset'; });
+        var detail = 'Relations that use it' + (inTax ? ' and its taxonomy value' : '') + ' are removed with it.';
+        if (others.length) detail += ' ' + usageText(others) + ' Those records show errors until you fix them.';
+        Kit.ui.confirm({ title: 'Delete the element "' + s.key + '"?', message: rels ? 'It is removed from the ruleset, along with ' + rels + ' relation' + (rels === 1 ? '' : 's') + '.' : 'It is removed from the ruleset.', detail: detail, okLabel: 'Delete', danger: true }).then(function (ok) {
+          if (!ok) return;
+          arr.splice(i, 1);
+          if (Array.isArray(r.elementRelations)) r.elementRelations = r.elementRelations.filter(function (x) { return !(U.isObj(x) && (x.a === s.key || x.b === s.key)); });
+          if (U.isObj(r.taxonomy)) {
+            if (Array.isArray(r.taxonomy.values)) r.taxonomy.values = r.taxonomy.values.filter(function (v) { return v !== s.key; });
+            if (Array.isArray(r.taxonomy.inverts)) r.taxonomy.inverts = r.taxonomy.inverts.filter(function (v) { return v !== s.key; });
+          }
+          ctx.changed(); repaint();
+        });
+      }));
+      row.appendChild(msg);
+      list.appendChild(row);
+      refs.push({ row: row, msg: msg });
+    });
+    paint();
+    if (!ctx.readOnly) {
+      var bar = el('div', 'btn-row rl-addbar');
+      bar.appendChild(button('Add element', 'plus', 'btn-primary', function () {
+        keyPrompt('Add an element', 'Element key', arr.map(function (x) { return U.isObj(x) ? x.key : ''; }), 16).then(function (k) {
+          if (k == null) return;
+          k = k.trim();
+          var a2 = Array.isArray(r.elements) ? r.elements : (r.elements = []);
+          a2.push({ key: k, label: cap1(k), color: ELEM_COLORS[a2.length % ELEM_COLORS.length] });
+          ctx.changed(); repaint(); focusRow(host, a2.length - 1);
+        });
+      }));
+      host.appendChild(bar);
+    }
+  };
+
+  // Relations (opposed pairs)
+  function relationProblems(arr, keys) {
+    var out = [], seen = {};
+    arr.forEach(function (x) {
+      var m = [];
+      if (U.isObj(x)) {
+        if (!x.a || !x.b) m.push({ text: 'Choose both elements.', level: 'error' });
+        else {
+          if (x.a === x.b) m.push({ text: 'An element cannot oppose itself.', level: 'error' });
+          if (keys.indexOf(x.a) < 0) m.push({ text: 'The element "' + x.a + '" is not declared.', level: 'error' });
+          if (keys.indexOf(x.b) < 0) m.push({ text: 'The element "' + x.b + '" is not declared.', level: 'error' });
+          var pk = [x.a, x.b].sort().join('|');
+          if (seen[pk]) m.push({ text: 'This pair is declared twice.', level: 'warning' });
+          seen[pk] = 1;
+        }
+      }
+      out.push(m);
+    });
+    return out;
+  }
+  RS.relations = function (host, ctx) {
+    U.clear(host);
+    var r = ctx.rs(), arr = Array.isArray(r.elementRelations) ? r.elementRelations : [], refs = [];
+    var elems = elemList(r), keys = elems.map(function (e) { return e.key; });
+    var opts = elems.map(function (e) { return { value: e.key, label: (e.label || e.key) + ' (' + e.key + ')' }; });
+    var nameOf = {}; elems.forEach(function (e) { nameOf[e.key] = e.label || e.key; });
+    host.appendChild(el('p', 'muted rl-lead', 'An opposed pair means each element is the other side\'s weakness. Enemy families resist their own type and are weak to its opposite. Elements with no pair have no weakness.'));
+    var list = el('div', 'rl-rows');
+    host.appendChild(list);
+    function repaint() { RS.relations(host, ctx); }
+    function paint() { paintMsgs(refs, relationProblems(arr, keys)); }
+    if (!arr.length) list.appendChild(el('div', 'empty-line', ctx.readOnly ? 'No relations are declared, so no element has a weakness.' : 'No pairs yet. Add one to give elements weaknesses.'));
+    arr.forEach(function (x, i) {
+      if (!U.isObj(x)) return;
+      var row = el('div', 'rl-row'), msg = el('div', 'rl-msgs'), note = el('div', 'rl-pairnote muted');
+      function paintNote() { note.textContent = x.a && x.b && x.a !== x.b ? (nameOf[x.a] || x.a) + ' is weak to ' + (nameOf[x.b] || x.b) + ', and ' + (nameOf[x.b] || x.b) + ' is weak to ' + (nameOf[x.a] || x.a) + '.' : ''; }
+      ['a', 'b'].forEach(function (side) {
+        row.appendChild(fieldBox('Element ' + side.toUpperCase(), mkSelect(opts, x[side], { label: 'Element ' + side.toUpperCase() + ' of pair ' + (i + 1), readOnly: ctx.readOnly, onChange: function (v) { if (v) x[side] = v; else delete x[side]; x.kind = 'opposed'; ctx.changed(); paint(); paintNote(); } }), 'lg'));
+      });
+      row.appendChild(rowControls(ctx, arr, i, 'pair ' + (i + 1), repaint, function () {
+        Kit.ui.confirm({ title: 'Delete this pair?', message: 'The elements stay. They just stop opposing each other.', okLabel: 'Delete', danger: true }).then(function (ok) { if (!ok) return; arr.splice(i, 1); ctx.changed(); repaint(); });
+      }));
+      paintNote();
+      row.appendChild(note);
+      row.appendChild(msg);
+      list.appendChild(row);
+      refs.push({ row: row, msg: msg });
+    });
+    paint();
+    if (!ctx.readOnly) {
+      var bar = el('div', 'btn-row rl-addbar');
+      var add = button('Add pair', 'plus', 'btn-primary', function () {
+        if (keys.length < 2) { Kit.ui.toast('Declare at least two elements first.', 'warn'); return; }
+        var have = {}; arr.forEach(function (x) { if (U.isObj(x) && x.a && x.b) have[[x.a, x.b].sort().join('|')] = 1; });
+        var pick = null;
+        for (var p = 0; p < keys.length && !pick; p++) { for (var q = p + 1; q < keys.length; q++) { if (!have[[keys[p], keys[q]].sort().join('|')]) { pick = [keys[p], keys[q]]; break; } } }
+        pick = pick || [keys[0], keys[1]];
+        var a2 = Array.isArray(r.elementRelations) ? r.elementRelations : (r.elementRelations = []);
+        a2.push({ a: pick[0], b: pick[1], kind: 'opposed' });
+        ctx.changed(); repaint(); focusRow(host, a2.length - 1);
+      });
+      if (keys.length < 2) add.title = 'Declare at least two elements first.';
+      bar.appendChild(add);
+      host.appendChild(bar);
+    }
+  };
+
+  // Taxonomy
+  function ensureTax(r) {
+    if (!U.isObj(r.taxonomy)) r.taxonomy = { label: '', values: [], inverts: [] };
+    if (!Array.isArray(r.taxonomy.values)) r.taxonomy.values = [];
+    if (!Array.isArray(r.taxonomy.inverts)) r.taxonomy.inverts = [];
+    return r.taxonomy;
+  }
+  RS.taxonomy = function (host, ctx) {
+    U.clear(host);
+    var r = ctx.rs(), tax = U.isObj(r.taxonomy) ? r.taxonomy : { label: '', values: [], inverts: [] };
+    var vals = Array.isArray(tax.values) ? tax.values : [], refs = [];
+    function repaint() { RS.taxonomy(host, ctx); }
+    host.appendChild(el('p', 'muted rl-lead', 'The taxonomy classifies enemy families, for example by Type or Kind. Each value can be an element key or a custom word. An inverted value is healed by damage and hurt by healing, which is how undead work.'));
+    var lab = mkInput({ value: tax.label, label: 'Taxonomy label', maxLength: 30, placeholder: 'For example Type or Kind', readOnly: ctx.readOnly, onInput: function (v) { ensureTax(r).label = v; ctx.changed(); paintLabel(); } });
+    var labMsg = el('div', 'field-msg');
+    function paintLabel() {
+      U.clear(labMsg);
+      if (vals.length && !String(ensureTaxRead().label || '').trim()) labMsg.appendChild(el('div', 'msg msg-error', 'Give the taxonomy a label such as Type or Kind.'));
+    }
+    function ensureTaxRead() { return U.isObj(r.taxonomy) ? r.taxonomy : tax; }
+    var lf = fieldBox('Label', lab, 'lg'); lf.appendChild(labMsg);
+    var top = el('div', 'rl-row'); top.appendChild(lf); host.appendChild(top);
+    paintLabel();
+    var list = el('div', 'rl-rows');
+    host.appendChild(list);
+    function problems() {
+      var seen = {};
+      return vals.map(function (v) {
+        var m = [];
+        if (!v) m.push('Enter a value.');
+        else if (!/^[a-z][a-z0-9_-]*$/.test(v)) m.push('Use lowercase letters, digits, hyphens, or underscores, starting with a letter.');
+        else if (seen[v]) m.push('This value is listed twice.');
+        if (v) seen[v] = 1;
+        return m;
+      });
+    }
+    function paint() { paintMsgs(refs, problems()); }
+    if (!vals.length) list.appendChild(el('div', 'empty-line', ctx.readOnly ? 'No taxonomy values are declared.' : 'No values yet. Add them from your elements or type your own.'));
+    vals.forEach(function (v, i) {
+      var row = el('div', 'rl-row'), msg = el('div', 'rl-msgs');
+      var used = ctx.readOnly ? [] : WSX.usage('taxon', v);
+      var keyNode;
+      if (ctx.readOnly || used.length) {
+        keyNode = el('div', 'rl-keycode', esc(v));
+        if (used.length) keyNode.title = 'Locked. ' + usageText(used);
+      } else keyNode = mkInput({
+        value: v, label: 'Taxonomy value ' + (i + 1), maxLength: 24, mono: true,
+        onInput: function (nv) {
+          nv = nv.trim();
+          var t = ensureTax(r), was = t.values[i], j = t.inverts.indexOf(was);
+          t.values[i] = nv;
+          if (j >= 0) t.inverts[j] = nv;
+          vals = t.values; ctx.changed(); paint();
+        }
+      });
+      row.appendChild(fieldBox('Value', keyNode, 'lg'));
+      var inv = el('label', 'switch');
+      var cb = el('input'); cb.type = 'checkbox'; cb.checked = Array.isArray(tax.inverts) && tax.inverts.indexOf(v) >= 0;
+      cb.setAttribute('aria-label', 'Inverted: ' + v);
+      if (ctx.readOnly) cb.disabled = true;
+      var track = el('span', 'track'), txt = el('span', 'switch-text', cb.checked ? 'Inverted' : 'Normal');
+      cb.addEventListener('change', function () {
+        var t = ensureTax(r), j = t.inverts.indexOf(v);
+        if (cb.checked && j < 0) t.inverts.push(v);
+        if (!cb.checked && j >= 0) t.inverts.splice(j, 1);
+        txt.textContent = cb.checked ? 'Inverted' : 'Normal';
+        ctx.changed();
+      });
+      inv.appendChild(cb); inv.appendChild(track); inv.appendChild(txt);
+      row.appendChild(fieldBox('Healing', inv, 'md'));
+      row.appendChild(rowControls(ctx, vals, i, 'value ' + v, repaint, function () {
+        Kit.ui.confirm({ title: 'Delete the value "' + v + '"?', message: 'It is removed from the taxonomy.', detail: used.length ? usageText(used) + ' Those records show errors until you fix them.' : '', okLabel: 'Delete', danger: true }).then(function (ok) {
+          if (!ok) return;
+          var t = ensureTax(r);
+          t.values.splice(i, 1);
+          t.inverts = t.inverts.filter(function (x) { return x !== v; });
+          ctx.changed(); repaint();
+        });
+      }));
+      row.appendChild(msg);
+      list.appendChild(row);
+      refs.push({ row: row, msg: msg });
+    });
+    paint();
+    if (!ctx.readOnly) {
+      var missing = elemList(r).map(function (e) { return e.key; }).filter(function (k) { return vals.indexOf(k) < 0; });
+      if (missing.length) {
+        var chips = el('div', 'rl-chipbar');
+        chips.appendChild(el('span', 'muted', 'Add from elements:'));
+        missing.forEach(function (k) {
+          chips.appendChild(button(k, 'plus', 'btn-ghost rl-chipbtn', function () { ensureTax(r).values.push(k); ctx.changed(); repaint(); }));
+        });
+        host.appendChild(chips);
+      }
+      var bar = el('div', 'btn-row rl-addbar');
+      bar.appendChild(button('Add custom value', 'plus', 'btn-primary', function () {
+        Kit.ui.prompt({
+          title: 'Add a taxonomy value', label: 'Value', okLabel: 'Add', placeholder: 'For example beast or machine',
+          validate: function (nv) {
+            nv = nv.trim();
+            if (!/^[a-z][a-z0-9_-]*$/.test(nv)) return 'Use lowercase letters, digits, hyphens, or underscores, starting with a letter.';
+            if (vals.indexOf(nv) >= 0) return 'That value already exists.';
+            return null;
+          }
+        }).then(function (nv) {
+          if (nv == null) return;
+          ensureTax(r).values.push(nv.trim());
+          ctx.changed(); repaint(); focusRow(host, ensureTax(r).values.length);
+        });
+      }));
+      host.appendChild(bar);
+    }
+  };
+
+  // Default affinity, computed from the relation table.
+  var absorbPreview = {};
+  function affinityChip(a) {
+    return '<span class="chip rl-aff rl-aff-' + a + '">' + esc(a) + '</span>';
+  }
+  RS.affinity = function (host, ctx) {
+    U.clear(host);
+    var b = cur(), r = rsOf(b), elems = elemList(r), tax = U.isObj(r.taxonomy) ? r.taxonomy : {};
+    var vals = Array.isArray(tax.values) ? tax.values : [];
+    host.appendChild(el('p', 'muted rl-lead', 'Default affinity is computed, never typed. A family resists its own type, is weak to the opposite of that type, and takes normal damage from everything else. Turn on absorb and its own type heals it instead. Enemies can override any cell on their own record.'));
+    if (!elems.length || !vals.length) {
+      host.appendChild(el('div', 'empty-line', !elems.length ? 'Declare elements first.' : 'Add taxonomy values to see the default affinity of each family type.'));
+    } else {
+      var wrap = el('div', 'tbl-wrap'), t = el('table', 'tbl rl-matrix');
+      var head = '<tr><th scope="col">' + esc(tax.label || 'Type') + '</th>' + elems.map(function (e) { return '<th scope="col">' + esc(e.label || e.key) + '</th>'; }).join('') + '<th scope="col">Absorb</th></tr>';
+      t.innerHTML = '<thead>' + head + '</thead>';
+      var tb = el('tbody');
+      vals.forEach(function (v) {
+        var tr = el('tr');
+        tr.appendChild(el('th', null, esc(v)));
+        tr.firstChild.scope = 'row';
+        var aff = window.WS.codex.defaultAffinity(b, v, !!absorbPreview[v]);
+        elems.forEach(function (e) { tr.appendChild(el('td', null, affinityChip(aff[e.key] || 'normal'))); });
+        var td = el('td'), lab = el('label', 'switch');
+        var cb = el('input'); cb.type = 'checkbox'; cb.checked = !!absorbPreview[v]; cb.setAttribute('aria-label', 'Preview absorb for ' + v);
+        cb.addEventListener('change', function () { absorbPreview[v] = cb.checked; RS.affinity(host, ctx); });
+        lab.appendChild(cb); lab.appendChild(el('span', 'track')); td.appendChild(lab); tr.appendChild(td);
+        tb.appendChild(tr);
+      });
+      t.appendChild(tb); wrap.appendChild(t); host.appendChild(wrap);
+      host.appendChild(el('p', 'muted rl-note', 'The Absorb column previews the option. To mark a real family as absorbing, use its switch below or its own record.'));
+    }
+    var fams = Kit.records.list('fam_');
+    host.appendChild(el('h3', 'section-h', 'Families'));
+    if (!fams.length) host.appendChild(el('div', 'empty-line', 'No enemy families exist yet. They are authored under Content.'));
+    else {
+      var list = el('div', 'rl-rows');
+      fams.slice().sort(function (x, y) { return String(x.name).localeCompare(String(y.name)); }).forEach(function (f) {
+        var row = el('div', 'rl-row rl-famrow');
+        row.appendChild(el('div', 'rl-f lg', '<strong>' + esc(f.name || f.id) + '</strong><span class="muted">' + esc((tax.label || 'Type') + ': ' + (f.type || 'not set')) + '</span>'));
+        var sw = el('label', 'switch'), cb = el('input'); cb.type = 'checkbox'; cb.checked = !!f.absorbsOwnType; cb.setAttribute('aria-label', 'Absorbs its own type: ' + (f.name || f.id));
+        var tx = el('span', 'switch-text', cb.checked ? 'Absorbs own type' : 'Resists own type');
+        cb.addEventListener('change', function () {
+          f.absorbsOwnType = cb.checked; tx.textContent = cb.checked ? 'Absorbs own type' : 'Resists own type';
+          Kit.bundle.touch('rules-affinity'); summary();
+        });
+        sw.appendChild(cb); sw.appendChild(el('span', 'track')); sw.appendChild(tx);
+        row.appendChild(sw);
+        var sum = el('div', 'rl-affsum');
+        function summary() {
+          var a = window.WS.codex.defaultAffinity(cur(), f.type, !!f.absorbsOwnType), parts = [];
+          Object.keys(a).forEach(function (k) { if (a[k] !== 'normal') parts.push(affinityChip(a[k]).replace('</span>', ' ' + esc(k) + '</span>')); });
+          sum.innerHTML = parts.length ? parts.join('') : '<span class="muted">Normal to everything</span>';
+        }
+        summary();
+        row.appendChild(sum);
+        list.appendChild(row);
+      });
+      host.appendChild(list);
+    }
+  };
+  RS.ORDER = ['stats', 'elements', 'relations', 'taxonomy', 'affinity'];
+  RS.LABELS = { stats: 'Stats', elements: 'Elements', relations: 'Relations', taxonomy: 'Taxonomy', affinity: 'Affinity' };
+
+  function lockedBanner(host) {
+    var b = cur(), c = b.charter;
+    if (!c.locked) return;
+    var bn = el('div', 'rl-banner');
+    bn.appendChild(el('span', null, 'These systems live in the Charter, which is locked at version ' + c.version + '. They are read only here. Amend the Charter to change them.'));
+    var ab = button('Amend Charter', 'edit', '', function () { window.WS.charter.amend(); });
+    bn.appendChild(ab);
+    host.appendChild(bn);
+  }
+  // Drawer used from the Charter while it is unlocked. The same editors, fully editable.
+  WSX.openSystems = function (tab) {
+    var b = cur(), state = { tab: RS.ORDER.indexOf(tab) >= 0 ? tab : 'stats' };
+    var panel, tabs;
+    function paint() {
+      Array.prototype.forEach.call(tabs.children, function (t) { t.setAttribute('aria-selected', t.dataset.tab === state.tab ? 'true' : 'false'); });
+      U.clear(panel);
+      var ctx = sysCtx(function () { Kit.refreshValidation(); });
+      if (ctx.readOnly) lockedBanner(panel);
+      var host = el('div');
+      panel.appendChild(host);
+      RS[state.tab](host, ctx);
+    }
+    return Kit.ui.drawer({
+      title: 'Ruleset systems',
+      onClose: function () { if (Kit.active() === 'charter') Kit.rerender(); },
+      body: function (body) {
+        tabs = el('div', 'rl-tabs'); tabs.setAttribute('role', 'tablist');
+        RS.ORDER.forEach(function (k) {
+          var t = el('button', 'rl-tab', esc(RS.LABELS[k])); t.type = 'button'; t.dataset.tab = k; t.setAttribute('role', 'tab');
+          t.addEventListener('click', function () { state.tab = k; paint(); });
+          tabs.appendChild(t);
+        });
+        panel = el('div', 'rl-tabpanel');
+        body.appendChild(tabs); body.appendChild(panel);
+        paint();
+      }
+    });
+  };
+
+  // ---------------------------------------------------------------- formula preview (live, Chart.js)
+  var sampleState = { level: 10, power: 20, cap: 99, a: {}, t: {} };
+  function whenChart(cb, tries) {
+    if (window.Chart) { cb(window.Chart); return; }
+    if ((tries || 0) > 40) { cb(null); return; }
+    setTimeout(function () { whenChart(cb, (tries || 0) + 1); }, 150);
+  }
+  function defaultSample(b, which) {
+    var st = rsOf(b).stats, out = {};
+    (Array.isArray(st) ? st : []).forEach(function (s) {
+      if (!U.isObj(s) || !s.key) return;
+      var lo = typeof s.min === 'number' ? s.min : 0, hi = typeof s.max === 'number' ? s.max : 99;
+      var v = which === 'a' ? lo + (hi - lo) * 0.3 : lo + (hi - lo) * 0.2;
+      out[s.key] = Math.max(lo, Math.round(v));
+    });
+    return out;
+  }
+  function sampleScope(b) {
+    var keys = statKeys(b), a = { level: sampleState.level }, t = { level: sampleState.level };
+    keys.forEach(function (k) {
+      if (sampleState.a[k] == null) sampleState.a[k] = defaultSample(b, 'a')[k];
+      if (sampleState.t[k] == null) sampleState.t[k] = defaultSample(b, 't')[k];
+      a[k] = sampleState.a[k]; t[k] = sampleState.t[k];
+    });
+    return { a: a, t: t, power: sampleState.power };
+  }
+  function fmtNum(n) {
+    if (typeof n !== 'number' || !isFinite(n)) return String(n);
+    return Math.abs(n) >= 1000 ? String(Math.round(n)) : String(Math.round(n * 1000) / 1000);
+  }
+  // getSource() returns {expr, params, kind} or null. Returns {update(), destroy()}.
+  WSX.preview = function (host, getSource, o) {
+    o = o || {};
+    U.clear(host);
+    var chart = null, dead = false;
+    var box = el('div', 'rl-prev');
+    var head = el('div', 'rl-prev-head', '<h3 class="section-h">Live preview</h3>');
+    box.appendChild(head);
+    var inputs = el('div', 'rl-prev-inputs');
+    var readout = el('div', 'rl-prev-read');
+    var errBox = el('div', 'rl-prev-err');
+    var chartWrap = el('div', 'rl-chart');
+    var canvas = el('canvas'); canvas.setAttribute('role', 'img');
+    chartWrap.appendChild(canvas);
+    var table = el('div', 'tbl-wrap rl-prev-table');
+    box.appendChild(inputs); box.appendChild(errBox); box.appendChild(readout); box.appendChild(chartWrap); box.appendChild(table);
+    host.appendChild(box);
+
+    function numIn(label, get, set, min, max) {
+      var w = el('label', 'rl-si'), lab = el('span', null, esc(label));
+      var i = el('input', 'inp'); i.type = 'number'; i.inputMode = 'decimal'; i.step = 'any'; i.value = get();
+      i.setAttribute('aria-label', 'Sample ' + label);
+      i.addEventListener('input', function () {
+        var v = Number(i.value);
+        if (i.value === '' || !isFinite(v)) return;
+        if (min != null && v < min) v = min;
+        if (max != null && v > max) v = max;
+        set(v); update();
+      });
+      w.appendChild(lab); w.appendChild(i);
+      return w;
+    }
+    function buildInputs() {
+      U.clear(inputs);
+      var b = cur(), keys = statKeys(b);
+      sampleScope(b);
+      var g1 = el('div', 'rl-si-group'), g2 = el('div', 'rl-si-group'), g3 = el('div', 'rl-si-group');
+      g1.appendChild(el('div', 'rl-si-title', 'Sample'));
+      g1.appendChild(numIn('level', function () { return sampleState.level; }, function (v) { sampleState.level = Math.round(v); }, 1, 999));
+      g1.appendChild(numIn('power', function () { return sampleState.power; }, function (v) { sampleState.power = v; }, 0, 99999));
+      g1.appendChild(numIn('level cap', function () { return sampleState.cap; }, function (v) { sampleState.cap = Math.max(2, Math.min(200, Math.round(v))); }, 2, 200));
+      g2.appendChild(el('div', 'rl-si-title', 'Attacker a.'));
+      g3.appendChild(el('div', 'rl-si-title', 'Target t.'));
+      keys.forEach(function (k) {
+        g2.appendChild(numIn(k, function () { return sampleState.a[k]; }, function (v) { sampleState.a[k] = v; }, 0, 999999));
+        g3.appendChild(numIn(k, function () { return sampleState.t[k]; }, function (v) { sampleState.t[k] = v; }, 0, 999999));
+      });
+      inputs.appendChild(g1); inputs.appendChild(g2); inputs.appendChild(g3);
+    }
+    function series(src) {
+      var b = cur(), base = sampleScope(b), ast = Kit.expr.parse(src.expr, { stats: statKeys(b), params: Object.keys(src.params || {}) });
+      var pts = [], cap = sampleState.cap;
+      for (var l = 1; l <= cap; l++) {
+        var sc = { a: Object.assign({}, base.a, { level: l }), t: Object.assign({}, base.t, { level: l }), power: base.power, p: src.params || {} };
+        var y = null;
+        try { y = Kit.expr.evaluate(ast, sc); } catch (e) { y = null; }
+        pts.push(y);
+      }
+      var one = Kit.expr.evaluate(ast, { a: base.a, t: base.t, power: base.power, p: src.params || {} });
+      return { pts: pts, value: one };
+    }
+    function paintTable(pts) {
+      U.clear(table);
+      var steps = [1, 5, 10, 20, 30, 50, 75, 99].filter(function (l) { return l <= sampleState.cap; });
+      if (steps.indexOf(sampleState.cap) < 0) steps.push(sampleState.cap);
+      var t = el('table', 'tbl');
+      t.innerHTML = '<caption class="sr-only">Formula results by level</caption><thead><tr><th scope="col">Level</th><th scope="col">Result</th></tr></thead>';
+      var tb = el('tbody');
+      steps.forEach(function (l) { tb.appendChild(el('tr', null, '<td>' + l + '</td><td>' + esc(pts[l - 1] == null ? 'error' : fmtNum(pts[l - 1])) + '</td>')); });
+      t.appendChild(tb); table.appendChild(t);
+    }
+    function update() {
+      if (dead || !alive(box)) return;
+      var src = getSource();
+      U.clear(errBox); readout.textContent = '';
+      if (!src || !src.expr) {
+        errBox.appendChild(el('div', 'msg msg-warning', 'Choose a template or write an expression to see a preview.'));
+        chartWrap.hidden = true; table.hidden = true; return;
+      }
+      var res;
+      try { res = series(src); }
+      catch (e) {
+        errBox.appendChild(el('div', 'msg msg-error', esc(e.message)));
+        chartWrap.hidden = true; table.hidden = true; return;
+      }
+      readout.innerHTML = 'At level ' + sampleState.level + ' the result is <strong>' + esc(fmtNum(res.value)) + '</strong>.';
+      chartWrap.hidden = false; table.hidden = false;
+      var labels = []; for (var l = 1; l <= sampleState.cap; l++) labels.push(String(l));
+      var desc = 'Formula result for levels 1 to ' + sampleState.cap + '. Level 1 gives ' + (res.pts[0] == null ? 'an error' : fmtNum(res.pts[0])) + ' and level ' + sampleState.cap + ' gives ' + (res.pts[res.pts.length - 1] == null ? 'an error' : fmtNum(res.pts[res.pts.length - 1])) + '.';
+      canvas.setAttribute('aria-label', desc);
+      paintTable(res.pts);
+      whenChart(function (C) {
+        if (dead || !alive(box)) return;
+        if (!C) { chartWrap.hidden = true; return; }
+        table.classList.add('rl-prev-table-fallback');
+        var cs = getComputedStyle(document.documentElement);
+        var accent = (cs.getPropertyValue('--accent') || '#d4a24c').trim() || '#d4a24c';
+        var grid = (cs.getPropertyValue('--line') || 'rgba(128,128,128,.25)').trim() || 'rgba(128,128,128,.25)';
+        var txt = (cs.getPropertyValue('--muted') || '#999').trim() || '#999';
+        if (!chart) {
+          chart = new C(canvas.getContext('2d'), {
+            type: 'line',
+            data: { labels: labels, datasets: [{ label: 'Result', data: res.pts, borderColor: accent, backgroundColor: accent, borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, tension: 0.15, spanGaps: false }] },
+            options: {
+              responsive: true, maintainAspectRatio: false, animation: false,
+              interaction: { mode: 'index', intersect: false },
+              plugins: { legend: { display: false } },
+              scales: {
+                x: { title: { display: true, text: 'Level', color: txt }, ticks: { color: txt, maxTicksLimit: 10 }, grid: { color: grid } },
+                y: { title: { display: true, text: 'Result', color: txt }, ticks: { color: txt }, grid: { color: grid }, beginAtZero: true }
+              }
+            }
+          });
+        } else {
+          chart.data.labels = labels; chart.data.datasets[0].data = res.pts;
+          chart.data.datasets[0].borderColor = accent; chart.data.datasets[0].backgroundColor = accent;
+          chart.update('none');
+        }
+        canvas.dataset.points = String(res.pts.length);
+        canvas.dataset.last = res.pts[res.pts.length - 1] == null ? '' : String(res.pts[res.pts.length - 1]);
+      });
+    }
+    buildInputs();
+    update();
+    return { update: update, rebuild: function () { buildInputs(); update(); }, destroy: function () { dead = true; if (chart) { chart.destroy(); chart = null; } }, chart: function () { return chart; } };
+  };
+
+  // ---------------------------------------------------------------- records workspace
+  var state = { view: null, editing: null, search: {}, focusPath: null };
+  var hostRef = null, kform = null, prevCtl = null;
+
+  function typeMap() { return Kit.codex.types(cur()) || {}; }
+  function typeByName(n) { return typeMap()[n] || null; }
+  function progType() {
+    var tm = typeMap(), names = Object.keys(tm);
+    for (var i = 0; i < names.length; i++) { if (tm[names[i]].group === 'module') return names[i]; }
+    return null;
+  }
+  var SYSTEM_TYPES = ['Status', 'Formula', 'Weather'];
+  function railModel() {
+    var tm = typeMap(), sys = [], content = [];
+    sys.push({ view: 'sys:stats', label: 'Stats', icon: 'gear' });
+    sys.push({ view: 'sys:elements', label: 'Elements', icon: 'spark' });
+    sys.push({ view: 'sys:relations', label: 'Relations', icon: 'jump' });
+    sys.push({ view: 'sys:taxonomy', label: 'Taxonomy', icon: 'book' });
+    sys.push({ view: 'sys:affinity', label: 'Affinity', icon: 'sword' });
+    sys.push({ view: 'sys:formulas', label: 'Formulas', icon: 'chart' });
+    SYSTEM_TYPES.forEach(function (n) {
+      if (n === 'Formula' || !tm[n]) return;
+      sys.push({ view: 'type:' + n, label: n === 'Weather' ? 'Weather states' : 'Statuses', icon: n === 'Weather' ? 'moon' : 'warn', type: n });
+    });
+    var pn = progType();
+    if (pn) sys.push({ view: 'type:' + pn, label: 'Progression: ' + (tm[pn].label || pn), icon: 'key', type: pn });
+    Object.keys(tm).forEach(function (n) {
+      var t = tm[n];
+      if (!t || !t.prefix || SYSTEM_TYPES.indexOf(n) >= 0 || n === pn) return;
+      var info = Kit.codex.prefixInfo(t.prefix);
+      if (!info || info.ns !== 'rules') return;
+      content.push({ view: 'type:' + n, label: t.label || n, icon: 'scroll', type: n, order: t.group === 'living' ? 2 : 1 });
+    });
+    content.sort(function (a, b) { return a.order - b.order || a.label.localeCompare(b.label); });
+    return { sys: sys, content: content };
+  }
+  function viewExists(v) {
+    if (!v) return false;
+    if (v.indexOf('type:') === 0) return !!typeByName(v.slice(5));
+    var m = railModel();
+    return m.sys.concat(m.content).some(function (x) { return x.view === v; });
+  }
+  function counts(type) {
+    var t = typeByName(type);
+    return t && t.prefix ? Kit.records.list(t.prefix).length : 0;
+  }
+  function typeOfRecordId(id) {
+    if (!Kit.ids.isValid(id)) return null;
+    return Kit.codex.typeFor(Kit.ids.prefixOf(id), cur());
+  }
+  function typeDefaults(typeName, rec) {
+    var cfg = TYPE_CFG[typeName];
+    if (cfg && cfg.init) cfg.init(rec);
+    return rec;
+  }
+  function newRecord(typeName, name) {
+    var t = typeByName(typeName), b = cur();
+    var rec = { id: Kit.ids.mint(t.prefix, name), name: name, charterVersion: b.charter.version || 0 };
+    typeDefaults(typeName, rec);
+    Kit.records.put(rec);
+    Kit.bundle.touch('rules-new');
+    return rec;
+  }
+  function askName(title, initial) {
+    return Kit.ui.prompt({ title: title, label: 'Name', value: initial || '', okLabel: 'Create', validate: function (v) { return v.trim() ? (v.trim().length > 60 ? 'Use at most 60 characters.' : null) : 'Give it a name.'; } });
+  }
+  function dupRecord(rec, typeName) {
+    var copy = U.clone(rec), t = typeByName(typeName);
+    var name = String(rec.name || 'Copy').replace(/ copy( \d+)?$/, '') + ' copy';
+    copy.id = Kit.ids.mint(t.prefix, name);
+    copy.name = name;
+    copy.charterVersion = cur().charter.version || 0;
+    Kit.records.put(copy);
+    Kit.bundle.touch('rules-duplicate');
+    return copy;
+  }
+  function deleteRecord(rec, typeName) {
+    var refs = refsTo(rec.id);
+    return Kit.ui.confirm({
+      title: 'Delete "' + (rec.name || rec.id) + '"?',
+      message: 'This removes the record. Its ID is not reused.',
+      detail: refs.length ? 'It is referenced by ' + refs.slice(0, 5).join(', ') + (refs.length > 5 ? ', and more' : '') + '. Those references will show as broken until you fix them.' : '',
+      okLabel: 'Delete', danger: true
+    }).then(function (ok) {
+      if (!ok) return false;
+      Kit.records.del(rec.id);
+      Kit.bundle.touch('rules-delete');
+      return true;
+    });
+  }
+  function markReviewed(rec) {
+    rec.charterVersion = cur().charter.version || 0;
+    Kit.bundle.touch('rules-reviewed');
+  }
+
+  // Per type extras. init sets new record defaults; extras paints tools under the form.
+  var TYPE_CFG = {
+    Status: {
+      init: function (rec) { rec.gauge = 'normal'; rec.tickEffect = { kind: 'none', percent: 0 }; rec.duration = 3; rec.cure = { battleEnd: true, onHit: false, curedBy: [] }; },
+      draftPrompt: 'Draft a status effect that fits the Charter tone. Choose a gauge effect, an optional tick effect, a duration, and how it is cured.'
+    },
+    Formula: {
+      init: function (rec) { rec.template = 'phys.sub'; rec.params = {}; },
+      extras: function (box, rec, api) { formulaExtras(box, rec, api); },
+      draftPrompt: 'Draft a battle formula. Prefer a template from the library and only override parameters you need to change. If you write an expression use only a.<stat>, a.level, t.<stat>, t.level, power, p.<param>, the operators + - * / ^, parentheses, and the functions min, max, floor, ceil, round, clamp, pow, sqrt.'
+    },
+    Weather: {
+      init: function (rec) {
+        rec.realWorld = '';
+        rec.elementMultipliers = {};
+        elemList(rsOf()).forEach(function (e) { rec.elementMultipliers[e.key] = 1; });
+        rec.encounterModifiers = { rate: 1, familyWeights: [] };
+      },
+      extras: function (box, rec, api) { weatherExtras(box, rec, api); },
+      draftPrompt: 'Draft a weather state grounded in a real meteorological phenomenon. Set element multipliers between 0 and 5 where one is neutral, and an encounter rate near one.'
+    },
+    Materia: {
+      extras: function (box, rec, api) { materiaExtras(box, rec, api); }
+    }
+  };
+
+  function formulaExtras(box, rec, api) {
+    var b = cur();
+    var lib = el('div', 'rl-tools');
+    var sel = el('select', 'inp'); sel.setAttribute('aria-label', 'Load a library template');
+    sel.appendChild(new Option('Load a library template...', ''));
+    FORMULA_ORDER.forEach(function (id) { sel.appendChild(new Option(id + ': ' + FORMULA_LIB[id].label, id)); });
+    sel.addEventListener('change', function () {
+      var id = sel.value; if (!id) return;
+      rec.template = id; rec.params = {};
+      api.changed(true);
+    });
+    lib.appendChild(sel);
+    var note = el('div', 'muted rl-note');
+    var src = recordSource(rec);
+    note.textContent = src && src.template ? FORMULA_LIB[src.template].note : 'Custom expression. Variables are a.<stat>, a.level, t.<stat>, t.level, power, and p.<param>.';
+    lib.appendChild(note);
+    if (rec.template && FORMULA_LIB[rec.template]) {
+      var dp = el('div', 'rl-defaults');
+      dp.innerHTML = '<span class="muted">Default parameters:</span> ' + Object.keys(FORMULA_LIB[rec.template].params).map(function (k) { return '<code>' + esc(k) + ' = ' + esc(FORMULA_LIB[rec.template].params[k]) + '</code>'; }).join(' ');
+      lib.appendChild(dp);
+      var exp = el('div', 'rl-expr'); exp.innerHTML = '<span class="muted">Expression:</span> <code>' + esc(FORMULA_LIB[rec.template].expr) + '</code>';
+      lib.appendChild(exp);
+    }
+    box.appendChild(lib);
+    var pv = el('div');
+    box.appendChild(pv);
+    prevCtl = WSX.preview(pv, function () { return recordSource(rec); });
+    api.onLive(function () { if (prevCtl) prevCtl.update(); });
+    void b;
+  }
+
+  function weatherExtras(box, rec, api) {
+    var tools = el('div', 'rl-tools');
+    var wrap = Kit.ai.button('Suggest from meteorology', function () { return suggestWeather(rec, api); }, { busyLabel: 'Consulting Claude...' });
+    tools.appendChild(wrap);
+    tools.appendChild(el('span', 'muted rl-note', 'Sonnet reads the real world phenomenon and proposes an element multiplier for each element. You review before anything changes.'));
+    box.appendChild(tools);
+  }
+  async function suggestWeather(rec, api) {
+    var phen = String(rec.realWorld || '').trim();
+    if (!phen) { Kit.ui.toast('Fill in the real world phenomenon first.', 'warn'); return; }
+    var elems = elemList(rsOf());
+    if (!elems.length) { Kit.ui.toast('Declare elements in the Charter first.', 'warn'); return; }
+    var system = 'You are a meteorology-literate game designer. Given a real weather phenomenon and a list of game elements, set an element damage multiplier for each element based on the physics of the phenomenon. One is neutral. Use 0 to 5, typically 0.5 to 2. Explain each briefly. Return ONLY JSON: {"multipliers":{"<elementKey>":number},"rationale":{"<elementKey>":"one short sentence"}}. Include every element key exactly once. Do not use dashes in the text.';
+    var user = 'Phenomenon: ' + phen + '\nElements: ' + JSON.stringify(elems.map(function (e) { return { key: e.key, label: e.label || e.key }; }));
+    var out = await Kit.claude({ tier: 'sonnet', system: system, messages: [{ role: 'user', content: user }], maxTokens: 900, expectJson: true });
+    var j = out && out.json;
+    var m = j && U.isObj(j.multipliers) ? j.multipliers : null;
+    if (!m) { Kit.ui.toast('Claude did not return usable multipliers.', 'warn'); return; }
+    var clean = {}, why = U.isObj(j.rationale) ? j.rationale : {};
+    elems.forEach(function (e) {
+      var v = Number(m[e.key]);
+      clean[e.key] = isFinite(v) ? Math.max(0, Math.min(5, Math.round(v * 100) / 100)) : 1;
+    });
+    return new Promise(function (resolve) {
+      Kit.ui.dialog({
+        title: 'Suggested multipliers for ' + phen,
+        body: function (body) {
+          var t = el('table', 'tbl'); t.innerHTML = '<thead><tr><th scope="col">Element</th><th scope="col">Now</th><th scope="col">Suggested</th><th scope="col">Why</th></tr></thead>';
+          var tb = el('tbody');
+          elems.forEach(function (e) {
+            var now = rec.elementMultipliers && rec.elementMultipliers[e.key];
+            tb.appendChild(el('tr', null, '<th scope="row">' + esc(e.label || e.key) + '</th><td>' + esc(now == null ? '1' : now) + '</td><td><strong>' + esc(clean[e.key]) + '</strong></td><td>' + esc(why[e.key] || '') + '</td>'));
+          });
+          t.appendChild(tb);
+          var w = el('div', 'tbl-wrap'); w.appendChild(t); body.appendChild(w);
+        },
+        actions: [{ label: 'Keep mine', kind: 'ghost', value: false }, { label: 'Apply', kind: 'primary', value: true }],
+        onResult: function (v) {
+          if (v === true) { rec.elementMultipliers = clean; api.changed(true); Kit.ui.toast('Multipliers applied.', 'ok'); }
+          resolve();
+        }
+      });
+    });
+  }
+
+  function materiaExtras(box, rec, api) {
+    if (!WSX.roleId('ap')) return;
+    var tools = el('div', 'rl-tools');
+    tools.appendChild(button('Fill AP thresholds from the AP formula', 'chart', '', function () {
+      try {
+        var levels = 5, acc = 0, out = [];
+        for (var l = 1; l < levels; l++) { acc += WSX.evalRole('ap', { a: { level: l }, t: {}, power: 0 }); out.push(acc); }
+        rec.apThresholds = out; api.changed(true);
+      } catch (e) { Kit.ui.toast(e.message, 'warn'); }
+    }));
+    tools.appendChild(el('span', 'muted rl-note', 'Uses the ruleset AP formula and adds the amounts up for five levels.'));
+    box.appendChild(tools);
+  }
+
+  function editorView(main, typeName, rec) {
+    var t = typeByName(typeName), b = cur();
+    var stale = staleMap(b)[rec.id];
+    var head = el('div', 'rl-edhead');
+    head.appendChild(button('Back', 'up', 'btn-ghost rl-back', function () { state.editing = null; if (typeName === 'Formula') state.view = 'sys:formulas'; repaint(); }));
+    var title = el('div', 'rl-edtitle', '<strong>' + esc(rec.name || rec.id) + '</strong><code class="id">' + esc(rec.id) + '</code>');
+    head.appendChild(title);
+    var acts = el('div', 'rl-edacts');
+    if (stale) {
+      head.appendChild(el('span', 'chip chip-warning', 'Needs review for Charter v' + stale.need));
+      acts.appendChild(button('Mark reviewed', 'check', '', function () { markReviewed(rec); repaint(); }));
+    }
+    acts.appendChild(button('Duplicate', 'slots', 'btn-ghost', function () { var c = dupRecord(rec, typeName); state.editing = c.id; repaint(); Kit.ui.toast('Duplicated as ' + c.name + '.', 'ok'); }));
+    acts.appendChild(button('Delete', 'trash', 'btn-ghost btn-danger', function () { deleteRecord(rec, typeName).then(function (ok) { if (ok) { state.editing = null; repaint(); } }); }));
+    head.appendChild(acts);
+    main.appendChild(head);
+    var formHost = el('div', 'rl-form'), extras = el('div', 'rl-extras');
+    main.appendChild(formHost); main.appendChild(extras);
+    var live = [];
+    var api = {
+      onLive: function (fn) { live.push(fn); },
+      changed: function (rebuild) {
+        Kit.index.invalidate(); Kit.bundle.touch('rules-edit');
+        if (rebuild) { repaint(true); return; }
+        live.forEach(function (fn) { fn(); });
+      }
+    };
+    kform = Kit.form.render(formHost, typeName, rec, function () { api.changed(false); }, {});
+    var cfg = TYPE_CFG[typeName];
+    if (cfg && cfg.extras) cfg.extras(extras, rec, api);
+    void t;
+  }
+
+  function matches(rec, q) {
+    if (!q) return true;
+    q = q.toLowerCase();
+    return String(rec.name || '').toLowerCase().indexOf(q) >= 0 || String(rec.id || '').indexOf(q) >= 0 || String(rec.notes || '').toLowerCase().indexOf(q) >= 0;
+  }
+  function draftDialog(typeName, mode) {
+    var t = typeByName(typeName), label = t.label || typeName;
+    var cfg = TYPE_CFG[typeName] || {};
+    return new Promise(function (resolve) {
+      var count, dir;
+      Kit.ui.dialog({
+        title: mode === 'set' ? 'Draft a set of ' + label + ' records' : 'Draft a ' + label + ' with Claude',
+        body: function (body) {
+          if (mode === 'set') {
+            var f1 = el('div', 'field'); f1.appendChild(el('label', 'field-label', 'How many'));
+            count = el('input', 'inp'); count.type = 'number'; count.min = 2; count.max = 8; count.value = 4; count.inputMode = 'numeric'; count.id = 'rl_dcount';
+            f1.firstChild.htmlFor = 'rl_dcount'; f1.appendChild(count); body.appendChild(f1);
+          }
+          var f2 = el('div', 'field'); f2.appendChild(el('label', 'field-label', mode === 'set' ? 'Direction for the set' : 'What should it be?'));
+          dir = el('textarea', 'inp'); dir.rows = 3; dir.id = 'rl_ddir'; dir.placeholder = 'Optional. For example: things found in the frozen north.';
+          f2.firstChild.htmlFor = 'rl_ddir'; f2.appendChild(dir); body.appendChild(f2);
+        },
+        actions: [{ label: 'Cancel', kind: 'ghost', value: null }, { label: mode === 'set' ? 'Draft the set' : 'Draft', kind: 'primary', value: 'go' }],
+        onResult: function (v) {
+          if (v !== 'go') { resolve(null); return; }
+          var n = mode === 'set' ? Math.max(2, Math.min(8, Math.round(Number(count.value)) || 4)) : 1;
+          var d = dir.value.trim();
+          var p = (cfg.draftPrompt || ('Draft ' + n + ' ' + label + ' record' + (n > 1 ? 's' : '') + ' that fit the Charter.')) + (n > 1 ? ' Draft ' + n + ' records that work well together and do not repeat each other.' : '') + (d ? ' Direction: ' + d : '');
+          resolve({ count: n, prompt: p });
+        }
+      });
+    });
+  }
+  function runDraft(typeName, mode) {
+    return draftDialog(typeName, mode).then(function (o) {
+      if (!o) return null;
+      return Kit.ai.draftRecords(typeName, {
+        count: o.count, prompt: o.prompt, tier: 'sonnet',
+        onAccept: function (rec) { Kit.records.put(rec); Kit.index.invalidate(); if (o.count === 1) { state.view = 'type:' + typeName; state.editing = rec.id; } }
+      });
+    });
+  }
+
+  function listView(main, typeName) {
+    var t = typeByName(typeName), b = cur();
+    var label = t.label || typeName;
+    var all = Kit.records.list(t.prefix).slice().sort(function (x, y) { return String(x.name || '').localeCompare(String(y.name || '')); });
+    var stale = staleMap(b);
+    var bar = el('div', 'rl-toolbar');
+    var s = el('input', 'inp rl-search'); s.type = 'search'; s.placeholder = 'Search ' + label.toLowerCase() + ' records'; s.setAttribute('aria-label', 'Search ' + label + ' records');
+    s.value = state.search[typeName] || '';
+    bar.appendChild(s);
+    bar.appendChild(button('New', 'plus', 'btn-primary', function () {
+      askName('New ' + label, '').then(function (n) {
+        if (n == null) return;
+        var rec = newRecord(typeName, n.trim());
+        state.view = 'type:' + typeName; state.editing = rec.id; repaint();
+      });
+    }));
+    bar.appendChild(Kit.ai.button('Draft with Claude', function () { return runDraft(typeName, 'one').then(function () { repaint(); }); }, { busyLabel: 'Drafting...' }));
+    bar.appendChild(Kit.ai.button('Draft a Set', function () { return runDraft(typeName, 'set').then(function () { repaint(); }); }, { busyLabel: 'Drafting...' }));
+    main.appendChild(bar);
+    var list = el('div', 'rl-reclist');
+    main.appendChild(list);
+    function paint() {
+      U.clear(list);
+      var q = s.value.trim();
+      var shown = all.filter(function (r) { return matches(r, q); });
+      if (!all.length) { list.appendChild(el('div', 'empty-line', 'No ' + label.toLowerCase() + ' records yet. Use New, or ask Claude to draft some.')); return; }
+      if (!shown.length) { list.appendChild(el('div', 'empty-line', 'No matches for that search.')); return; }
+      var errs = (Kit.validate.last && Kit.validate.last.byRecord) || {};
+      shown.forEach(function (r) {
+        var row = el('div', 'rl-rec');
+        var open = el('button', 'rl-rec-main'); open.type = 'button';
+        var n = (errs[r.id] || []).filter(function (x) { return x.level === 'error' || x.level === 'broken'; }).length;
+        open.innerHTML = '<strong>' + esc(r.name || r.id) + '</strong><code class="id">' + esc(r.id) + '</code>' +
+          (stale[r.id] ? '<span class="chip chip-warning">Review</span>' : '') + (n ? '<span class="chip chip-error">' + n + ' issue' + (n === 1 ? '' : 's') + '</span>' : '');
+        open.addEventListener('click', function () { state.view = 'type:' + typeName; state.editing = r.id; repaint(); });
+        row.appendChild(open);
+        row.appendChild(iconButton('slots', 'Duplicate ' + (r.name || r.id), function () { var c = dupRecord(r, typeName); state.view = 'type:' + typeName; state.editing = c.id; repaint(); }));
+        row.appendChild(iconButton('trash', 'Delete ' + (r.name || r.id), function () { deleteRecord(r, typeName).then(function (ok) { if (ok) repaint(); }); }));
+        list.appendChild(row);
+      });
+    }
+    s.addEventListener('input', function () { state.search[typeName] = s.value; paint(); });
+    paint();
+  }
+
+  function formulasView(main) {
+    var t = typeByName('Formula');
+    var fs = rsOf().formulaSet;
+    var role = el('div', 'rl-block');
+    role.appendChild(el('h3', 'section-h', 'Formula set'));
+    var roles = U.isObj(fs) ? Object.keys(fs) : [];
+    if (!roles.length) role.appendChild(el('div', 'empty-line', 'The ruleset assigns no formulas yet. Choose a preset in the Charter, or amend it.'));
+    else {
+      var tb = el('div', 'rl-roles');
+      roles.forEach(function (rk) {
+        var id = fs[rk], ok = !!WSX.formulaSource(id);
+        var chip = el('button', 'rl-role' + (ok ? '' : ' bad')); chip.type = 'button';
+        chip.innerHTML = '<span class="muted">' + esc(rk) + '</span><code>' + esc(id) + '</code>' + (ok ? '' : '<span class="chip chip-error">missing</span>');
+        chip.addEventListener('click', function () { if (FORMULA_LIB[id]) showLib(id); else if (ok) { state.view = 'type:Formula'; state.editing = id; repaint(); } });
+        tb.appendChild(chip);
+      });
+      role.appendChild(tb);
+    }
+    main.appendChild(role);
+    var lib = el('div', 'rl-block');
+    lib.appendChild(el('h3', 'section-h', 'Template library'));
+    lib.appendChild(el('p', 'muted rl-lead', 'These templates mirror the ones the battle engine implements. Preview any of them, or start a formula record from one.'));
+    var grid = el('div', 'rl-libgrid');
+    FORMULA_ORDER.forEach(function (id) {
+      var l = FORMULA_LIB[id], card = el('div', 'card rl-libcard');
+      card.innerHTML = '<div class="rl-libhead"><code>' + esc(id) + '</code><span class="chip chip-muted">' + esc(l.kind) + '</span></div><strong>' + esc(l.label) + '</strong><p class="muted">' + esc(l.note) + '</p>';
+      var act = el('div', 'btn-row');
+      act.appendChild(button('Preview', 'chart', 'btn-ghost', function () { showLib(id); }));
+      if (t) act.appendChild(button('Use', 'plus', '', function () {
+        askName('New formula from ' + id, l.label).then(function (n) {
+          if (n == null) return;
+          var rec = newRecord('Formula', n.trim()); rec.template = id; rec.params = {};
+          Kit.bundle.touch('rules-new'); state.view = 'type:Formula'; state.editing = rec.id; repaint();
+        });
+      }));
+      card.appendChild(act); grid.appendChild(card);
+    });
+    lib.appendChild(grid);
+    main.appendChild(lib);
+    if (t) {
+      var rec = el('div', 'rl-block');
+      rec.appendChild(el('h3', 'section-h', 'Your formulas'));
+      var box = el('div'); rec.appendChild(box); main.appendChild(rec);
+      listView(box, 'Formula');
+    }
+  }
+  function showLib(id) {
+    var src = libSource(id), ctl = null;
+    Kit.ui.drawer({
+      title: id + ': ' + src.label,
+      onClose: function () { if (ctl) ctl.destroy(); },
+      body: function (body) {
+        var d = el('div', 'rl-expr'); d.innerHTML = '<span class="muted">Expression:</span> <code>' + esc(src.expr) + '</code>';
+        var p = el('div', 'rl-defaults'); p.innerHTML = '<span class="muted">Parameters:</span> ' + Object.keys(src.params).map(function (k) { return '<code>' + esc(k) + ' = ' + esc(src.params[k]) + '</code>'; }).join(' ');
+        body.appendChild(el('p', 'muted', esc(src.note))); body.appendChild(d); body.appendChild(p);
+        var host = el('div'); body.appendChild(host);
+        ctl = WSX.preview(host, function () { return libSource(id); });
+      }
+    });
+  }
+
+  function systemsView(main, which) {
+    var head = el('div', 'rl-syshead');
+    head.appendChild(el('h2', 'rl-h2', esc(RS.LABELS[which])));
+    main.appendChild(head);
+    var b = cur();
+    var ctx = sysCtx(function () { Kit.refreshValidation(); });
+    if (which !== 'affinity') {
+      if (ctx.readOnly) lockedBanner(main);
+    }
+    var host = el('div', 'rl-sys');
+    main.appendChild(host);
+    RS[which](host, ctx);
+    void b;
+  }
+
+  // ---------------------------------------------------------------- shell
+  function repaint(keepScroll) {
+    if (!hostRef || !alive(hostRef)) return;
+    var y = keepScroll ? window.scrollY : 0;
+    var host = hostRef;
+    WSX.render(host, cur(), true);
+    if (keepScroll) window.scrollTo(0, y);
+  }
+  function railButton(item, active) {
+    var b = el('button', 'rl-nav' + (active ? ' on' : '')); b.type = 'button';
+    var n = item.type ? counts(item.type) : null;
+    b.innerHTML = Kit.icon(item.icon) + '<span class="rl-nav-l">' + esc(item.label) + '</span>' + (n != null ? '<span class="rl-count">' + n + '</span>' : '');
+    b.dataset.view = item.view;
+    if (active) b.setAttribute('aria-current', 'page');
+    b.addEventListener('click', function () { state.view = item.view; state.editing = null; uiSet({ view: item.view }); repaint(); });
+    return b;
+  }
+  WSX.render = function (host, b, isRepaint) {
+    hostRef = host;
+    if (prevCtl) { prevCtl.destroy(); prevCtl = null; }
+    U.clear(host);
+    var model = railModel();
+    if (!state.view || !viewExists(state.view)) { var saved = uiGet().view; state.view = viewExists(saved) ? saved : 'sys:stats'; }
+    var wrap = el('div', 'rl-wrap');
+    var rail = el('nav', 'rl-rail'); rail.setAttribute('aria-label', 'Rules sections');
+    var g1 = el('div', 'rl-group'), g2 = el('div', 'rl-group');
+    var curView = state.view === 'type:Formula' ? 'sys:formulas' : state.view;
+    g1.appendChild(el('div', 'rl-group-h', 'Systems'));
+    model.sys.forEach(function (i) { g1.appendChild(railButton(i, i.view === curView)); });
+    g2.appendChild(el('div', 'rl-group-h', 'Content'));
+    model.content.forEach(function (i) { g2.appendChild(railButton(i, i.view === curView)); });
+    if (!model.content.length) g2.appendChild(el('div', 'muted rl-note', 'Generate the Codex to add content types.'));
+    rail.appendChild(g1); rail.appendChild(g2);
+    var main = el('section', 'rl-main panel');
+    wrap.appendChild(rail); wrap.appendChild(main);
+    host.appendChild(wrap);
+    var v = state.view;
+    if (v.indexOf('sys:') === 0) {
+      var k = v.slice(4);
+      if (k === 'formulas') { main.appendChild(el('h2', 'rl-h2', 'Formulas')); state.editing = null; formulasView(main); }
+      else systemsView(main, k);
+    } else {
+      var tn = v.slice(5), t = typeByName(tn);
+      if (!t) main.appendChild(el('div', 'empty-line', 'That type is not in the Codex.'));
+      else {
+        var rec = state.editing ? Kit.records.get(state.editing) : null;
+        if (state.editing && !rec) state.editing = null;
+        if (rec) editorView(main, tn, rec);
+        else { main.appendChild(el('h2', 'rl-h2', esc(v === 'type:Status' ? 'Statuses' : v === 'type:Weather' ? 'Weather states' : (t.label || tn)))); listView(main, tn); }
+      }
+    }
+    if (isRepaint && state.focusPath && kform) { kform.focusPath(state.focusPath); state.focusPath = null; }
+  };
+
+  WSX.focus = function (recordId, fieldPath) {
+    if (recordId === 'charter:ruleset') {
+      var m = /^(stats|elements|elementRelations|taxonomy)/.exec(fieldPath || '');
+      state.view = 'sys:' + (m ? { stats: 'stats', elements: 'elements', elementRelations: 'relations', taxonomy: 'taxonomy' }[m[1]] : 'stats');
+      state.editing = null; repaint(); return true;
+    }
+    var tn = typeOfRecordId(recordId);
+    if (!tn) return false;
+    state.view = 'type:' + tn; state.editing = recordId; state.focusPath = fieldPath || null;
+    repaint();
+    return true;
+  };
+  WSX.open = function (view, id) { state.view = view; state.editing = id || null; if (Kit.active() === 'rules') repaint(); else Kit.go('rules'); };
+  WSX.state = state;
+
+  // ---------------------------------------------------------------- validation
+  Kit.validate.register('rules.formulas', function (b) {
+    var out = [], fs = rsOf(b).formulaSet;
+    Kit.records.list('frm_').forEach(function (r) {
+      var hasT = !!r.template, hasE = typeof r.expr === 'string' && r.expr.trim();
+      if (hasT && !FORMULA_LIB[r.template]) out.push({ recordId: r.id, fieldPath: 'template', message: 'The template "' + r.template + '" is not in the formula library.', level: 'error' });
+      else if (!hasT && !hasE) out.push({ recordId: r.id, fieldPath: 'template', message: 'Choose a template or write an expression.', level: 'error' });
+      else if (!hasT && hasE) {
+        try { Kit.expr.parse(r.expr, { stats: statKeys(b), params: Object.keys(numericParams(r.params)) }); }
+        catch (e) { out.push({ recordId: r.id, fieldPath: 'expr', message: e.message, level: 'error' }); }
+      }
+    });
+    if (U.isObj(fs)) Object.keys(fs).forEach(function (role) {
+      var id = fs[role];
+      if (!id) return;
+      if (!FORMULA_LIB[id] && !(Kit.ids.isValid(id) && Kit.records.get(id))) out.push({ recordId: 'charter:ruleset', fieldPath: 'formulaSet.' + role, message: 'The ' + role + ' formula "' + id + '" does not exist.', level: 'warning' });
+    });
+    return out;
+  });
+
+  Kit.mount('rules', { title: 'Rules', icon: 'sword', canEnter: WSX.canEnter, render: WSX.render, focus: WSX.focus });
 })();
 // === WS:RULES END ===
 // === ENGINE:BATTLE BEGIN ===
 var ENGINE_BATTLE = (function () {
   'use strict';
-  // Placeholder until the pure battle engine is built. This fence must stay self contained.
-  return { version: '0.0.0', templates: {}, evalExpr: null, init: null, advance: null, run: null };
+  // Pure battle engine. This fence must stay self contained. Pass 4a adds the safe expression evaluator, a duplicate
+  // of the shared expression core; Pass 5 adds the templates and the turn loop.
+  var expr = (function () {
+    var FUNCS = { min: [1, 99], max: [1, 99], floor: [1, 1], ceil: [1, 1], round: [1, 1], clamp: [3, 3], pow: [2, 2], sqrt: [1, 1] };
+    var FUNC_NAMES = ['min', 'max', 'floor', 'ceil', 'round', 'clamp', 'pow', 'sqrt'];
+    var MAX_LEN = 2000;
+    var VAR_HELP = 'Use a.<stat>, a.level, t.<stat>, t.level, power, or p.<param>.';
+    var PREC = { '+': 1, '-': 1, '*': 2, '/': 2, '^': 4 };
+
+    function fail(msg, pos) { var e = new Error(msg); if (pos != null) e.pos = pos; throw e; }
+    function has(o, k) { return o !== null && typeof o === 'object' && Object.prototype.hasOwnProperty.call(o, k); }
+    function isDigit(c) { return c >= '0' && c <= '9'; }
+    function isIdStart(c) { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c === '_'; }
+    function isIdPart(c) { return isIdStart(c) || isDigit(c); }
+
+    function tokenize(src) {
+      if (typeof src !== 'string') fail('The expression must be text.');
+      if (src.length > MAX_LEN) fail('The expression is longer than ' + MAX_LEN + ' characters.');
+      var out = [], i = 0, n = src.length, c, j, k, d, seenDot, nx;
+      while (i < n) {
+        c = src.charAt(i);
+        if (c === ' ' || c === '\t' || c === '\n' || c === '\r') { i++; continue; }
+        if (isDigit(c) || (c === '.' && i + 1 < n && isDigit(src.charAt(i + 1)))) {
+          j = i; seenDot = false;
+          while (j < n) {
+            d = src.charAt(j);
+            if (isDigit(d)) j++;
+            else if (d === '.' && !seenDot) { seenDot = true; j++; }
+            else break;
+          }
+          nx = src.charAt(j);
+          if (nx === '.') fail("Unexpected '.' at position " + (j + 1) + '.', j);
+          if (nx !== '' && isIdStart(nx)) fail("Unexpected '" + nx + "' after a number at position " + (j + 1) + '.', j);
+          out.push({ t: 'num', v: parseFloat(src.slice(i, j)), pos: i });
+          i = j;
+          continue;
+        }
+        if (isIdStart(c)) {
+          k = i + 1;
+          while (k < n && isIdPart(src.charAt(k))) k++;
+          if (src.charAt(k) === '.' && k + 1 < n && isIdStart(src.charAt(k + 1))) {
+            k++;
+            while (k < n && isIdPart(src.charAt(k))) k++;
+          }
+          out.push({ t: 'id', v: src.slice(i, k), pos: i });
+          i = k;
+          continue;
+        }
+        if (c === '+' || c === '-' || c === '*' || c === '/' || c === '^') { out.push({ t: 'op', v: c, pos: i }); i++; continue; }
+        if (c === '(') { out.push({ t: 'lp', pos: i }); i++; continue; }
+        if (c === ')') { out.push({ t: 'rp', pos: i }); i++; continue; }
+        if (c === ',') { out.push({ t: 'comma', pos: i }); i++; continue; }
+        fail("Illegal character '" + c + "' at position " + (i + 1) + '.', i);
+      }
+      return out;
+    }
+
+    function checkVar(name, pos, opts) {
+      var m, who, key, i, ok;
+      if (name === 'power') return;
+      m = /^([atp])\.([A-Za-z_][A-Za-z0-9_]*)$/.exec(name);
+      if (!m) fail("Unknown variable '" + name + "'. " + VAR_HELP, pos);
+      who = m[1]; key = m[2];
+      if (who === 'p') {
+        if (opts && opts.params) {
+          ok = false;
+          for (i = 0; i < opts.params.length; i++) { if (opts.params[i] === key) ok = true; }
+          if (!ok) fail("Unknown parameter 'p." + key + "'. Declared parameters: " + (opts.params.length ? opts.params.join(', ') : 'none') + '.', pos);
+        }
+        return;
+      }
+      if (key === 'level') return;
+      if (!/^[a-z][a-z0-9]*$/.test(key)) fail("Unknown variable '" + name + "'. " + VAR_HELP, pos);
+      if (opts && opts.stats) {
+        ok = false;
+        for (i = 0; i < opts.stats.length; i++) { if (opts.stats[i] === key) ok = true; }
+        if (!ok) fail("Unknown stat '" + key + "' in " + name + '. Declared stats: ' + (opts.stats.length ? opts.stats.join(', ') : 'none') + '.', pos);
+      }
+    }
+
+    // Tokenizer plus shunting yard parser. Returns an AST of {type:'num'|'var'|'un'|'bin'|'call'}.
+    function parse(src, opts) {
+      var toks = tokenize(src), out = [], ops = [], prev = 'start', i, t, top, nxt, prec, right, ar, argc, args, v;
+      if (!toks.length) fail('The expression is empty.');
+      function popApply() {
+        var op = ops.pop(), r, l;
+        if (op.k === 'un') {
+          if (out.length < 1) fail("Missing operand after '" + op.v + "' at position " + (op.pos + 1) + '.', op.pos);
+          out.push({ type: 'un', op: op.v, arg: out.pop() });
+        } else {
+          if (out.length < 2) fail("Missing operand for '" + op.v + "' at position " + (op.pos + 1) + '.', op.pos);
+          r = out.pop(); l = out.pop();
+          out.push({ type: 'bin', op: op.v, left: l, right: r });
+        }
+      }
+      function unwindToMarker() {
+        while (ops.length && ops[ops.length - 1].k !== 'lp' && ops[ops.length - 1].k !== 'fn') popApply();
+      }
+      for (i = 0; i < toks.length; i++) {
+        t = toks[i];
+        if (t.t === 'num') {
+          if (prev === 'operand') fail("Missing operator before '" + t.v + "' at position " + (t.pos + 1) + '.', t.pos);
+          out.push({ type: 'num', value: t.v });
+          prev = 'operand';
+        } else if (t.t === 'id') {
+          if (prev === 'operand') fail("Missing operator before '" + t.v + "' at position " + (t.pos + 1) + '.', t.pos);
+          nxt = toks[i + 1];
+          if (nxt && nxt.t === 'lp') {
+            if (!has(FUNCS, t.v)) fail("Unknown function '" + t.v + "'. Allowed functions: " + FUNC_NAMES.join(', ') + '.', t.pos);
+            ops.push({ k: 'fn', v: t.v, argc: 0, pos: t.pos });
+            i++;
+            prev = 'open';
+          } else {
+            checkVar(t.v, t.pos, opts);
+            out.push({ type: 'var', name: t.v });
+            prev = 'operand';
+          }
+        } else if (t.t === 'lp') {
+          if (prev === 'operand') fail("Missing operator before '(' at position " + (t.pos + 1) + '.', t.pos);
+          ops.push({ k: 'lp', pos: t.pos });
+          prev = 'open';
+        } else if (t.t === 'rp') {
+          if (prev === 'op' || prev === 'comma') fail("Missing operand before ')' at position " + (t.pos + 1) + '.', t.pos);
+          unwindToMarker();
+          if (!ops.length) fail("Unmatched ')' at position " + (t.pos + 1) + '.', t.pos);
+          top = ops.pop();
+          if (top.k === 'lp') {
+            if (prev === 'open') fail("Empty parentheses at position " + (t.pos + 1) + '.', t.pos);
+          } else {
+            argc = prev === 'open' ? 0 : top.argc + 1;
+            ar = FUNCS[top.v];
+            if (argc < ar[0] || argc > ar[1]) {
+              fail(top.v + ' takes ' + (ar[0] === ar[1] ? 'exactly ' + ar[0] : 'at least ' + ar[0]) + ' argument' + (ar[0] === 1 ? '' : 's') + ' but got ' + argc + '.', top.pos);
+            }
+            args = out.splice(out.length - argc, argc);
+            out.push({ type: 'call', name: top.v, args: args });
+          }
+          prev = 'operand';
+        } else if (t.t === 'comma') {
+          if (prev !== 'operand') fail("Missing argument before ',' at position " + (t.pos + 1) + '.', t.pos);
+          unwindToMarker();
+          if (!ops.length || ops[ops.length - 1].k !== 'fn') fail("Unexpected ',' at position " + (t.pos + 1) + '. Commas only separate function arguments.', t.pos);
+          ops[ops.length - 1].argc++;
+          prev = 'comma';
+        } else {
+          v = t.v;
+          if (prev === 'operand') {
+            prec = PREC[v]; right = v === '^';
+            while (ops.length) {
+              top = ops[ops.length - 1];
+              if (top.k !== 'bin' && top.k !== 'un') break;
+              if (top.prec > prec || (top.prec === prec && !right)) popApply(); else break;
+            }
+            ops.push({ k: 'bin', v: v, prec: prec, pos: t.pos });
+            prev = 'op';
+          } else {
+            if (v !== '-' && v !== '+') fail("Unexpected operator '" + v + "' at position " + (t.pos + 1) + '.', t.pos);
+            ops.push({ k: 'un', v: v, prec: 3, pos: t.pos });
+            prev = 'op';
+          }
+        }
+      }
+      if (prev !== 'operand') fail(prev === 'start' ? 'The expression is empty.' : 'The expression ends unexpectedly.');
+      while (ops.length) {
+        top = ops[ops.length - 1];
+        if (top.k === 'lp' || top.k === 'fn') fail("Unmatched '(' at position " + (top.pos + 1) + '.', top.pos);
+        popApply();
+      }
+      if (out.length !== 1) fail('The expression is not well formed.');
+      return out[0];
+    }
+
+    function finite(v, what) {
+      if (typeof v !== 'number' || !isFinite(v)) fail('The result of ' + what + ' is not a finite number.');
+      return v;
+    }
+    function lookup(scope, name) {
+      var dot, who, key, bag, v;
+      if (name === 'power') v = scope ? scope.power : undefined;
+      else {
+        dot = name.indexOf('.'); who = name.slice(0, dot); key = name.slice(dot + 1);
+        bag = scope ? (who === 'a' ? scope.a : who === 't' ? scope.t : scope.p) : undefined;
+        v = has(bag, key) ? bag[key] : undefined;
+      }
+      if (typeof v !== 'number' || !isFinite(v)) fail('No value was supplied for ' + name + '.');
+      return v;
+    }
+    function ev(node, scope) {
+      var l, r, v, args, k;
+      switch (node.type) {
+        case 'num': return node.value;
+        case 'var': return lookup(scope, node.name);
+        case 'un': v = ev(node.arg, scope); return node.op === '-' ? -v : v;
+        case 'bin':
+          l = ev(node.left, scope); r = ev(node.right, scope);
+          if (node.op === '+') v = l + r;
+          else if (node.op === '-') v = l - r;
+          else if (node.op === '*') v = l * r;
+          else if (node.op === '/') { if (r === 0) fail('Division by zero.'); v = l / r; }
+          else v = Math.pow(l, r);
+          return finite(v, "'" + node.op + "'");
+        case 'call':
+          args = [];
+          for (k = 0; k < node.args.length; k++) args.push(ev(node.args[k], scope));
+          switch (node.name) {
+            case 'min': v = Math.min.apply(null, args); break;
+            case 'max': v = Math.max.apply(null, args); break;
+            case 'floor': v = Math.floor(args[0]); break;
+            case 'ceil': v = Math.ceil(args[0]); break;
+            case 'round': v = Math.round(args[0]); break;
+            case 'sqrt': if (args[0] < 0) fail('sqrt needs a value that is not negative.'); v = Math.sqrt(args[0]); break;
+            case 'pow': v = Math.pow(args[0], args[1]); break;
+            default:
+              if (args[1] > args[2]) fail('clamp needs its low bound to be at most its high bound.');
+              v = Math.min(Math.max(args[0], args[1]), args[2]);
+          }
+          return finite(v, node.name + '()');
+        default:
+          return fail('The expression is not well formed.');
+      }
+    }
+    // scope = {a:{level, <stat>...}, t:{level, <stat>...}, power, p:{<param>...}}
+    function evaluate(astOrSrc, scope, opts) {
+      var ast = typeof astOrSrc === 'string' ? parse(astOrSrc, opts) : astOrSrc;
+      return finite(ev(ast, scope || {}), 'the expression');
+    }
+    // Names of every variable an AST uses, sorted and unique.
+    function variables(ast) {
+      var seen = {}, list = [];
+      (function walk(n) {
+        var i;
+        if (!n) return;
+        if (n.type === 'var') { if (!seen[n.name]) { seen[n.name] = 1; list.push(n.name); } }
+        else if (n.type === 'un') walk(n.arg);
+        else if (n.type === 'bin') { walk(n.left); walk(n.right); }
+        else if (n.type === 'call') { for (i = 0; i < n.args.length; i++) walk(n.args[i]); }
+      })(ast);
+      return list.sort();
+    }
+  return { parse: parse, evaluate: evaluate, variables: variables };
+  })();
+  return { version: '0.1.0', templates: {}, evalExpr: expr, init: null, advance: null, run: null };
 })();
 // === ENGINE:BATTLE END ===
 // === WS:ARENA BEGIN ===
