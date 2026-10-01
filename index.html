@@ -17,7 +17,7 @@ PASS 1 (2026-09-30, Opus): KIT:CORE and Shell. COMPLETE.
     Kit.settings.get / set / hasKey / open (kit:settings holds key, session, tiers{haiku, sonnet, opus, fable}).
     Kit.getModel(tier): Settings tier override, then ../config.json, then the portal config.json, then fallback.
     Kit.claude({tier, system, messages, maxTokens, expectJson, silent}) -> {text, json, model, response}.
-      Sends anthropic-dangerous-direct-browser-access and thinking {type:'disabled'}; extracts the first JSON
+      Sends anthropic-dangerous-direct-browser-access and thinking {type:'disabled'} (retried as {type:'between_tools'} for models that require it); extracts the first JSON
       block; one repair retry; logs block types and stop_reason on empty replies; errors toast unless silent.
       Kit.claude.extractJson(text).
     Kit.bundle: create, blank, load, current, touch, hash, migrate, slug, save, flush, dirty, open(ns), close(ns),
@@ -1408,6 +1408,23 @@ details.cx-block > .cx-block-sum { padding: 0; }
     return { text: text, data: data };
   }
 
+  // Some models reject thinking {type:'disabled'} and ask for {type:'between_tools'} instead. The first rejection is
+  // detected from the API message, the request is retried once with the other mode, and the choice is remembered per model.
+  var THINK_MODE = {};
+  async function callApiThinking(key, body) {
+    try {
+      return await callApi(key, body);
+    } catch (e) {
+      var msg = String(e && e.message || '');
+      if (e && e.status === 400 && msg.indexOf('between_tools') >= 0 && body.thinking && body.thinking.type !== 'between_tools') {
+        THINK_MODE[body.model] = 'between_tools';
+        body.thinking = { type: 'between_tools' };
+        return await callApi(key, body);
+      }
+      throw e;
+    }
+  }
+
   Kit.claude = async function (opts) {
     opts = opts || {};
     var key = Kit.settings.get().key;
@@ -1419,9 +1436,9 @@ details.cx-block > .cx-block-sum { padding: 0; }
     try {
       var model = await getModel(opts.tier || 'sonnet');
       var messages = (opts.messages || []).slice();
-      var body = { model: model, max_tokens: opts.maxTokens || 1024, messages: messages, thinking: { type: 'disabled' } };
+      var body = { model: model, max_tokens: opts.maxTokens || 1024, messages: messages, thinking: { type: THINK_MODE[model] || 'disabled' } };
       if (opts.system) body.system = opts.system;
-      var reply = await callApi(key, body);
+      var reply = await callApiThinking(key, body);
       if (!opts.expectJson) return { text: reply.text, json: null, model: model, response: reply.data };
       var parsed = extractJson(reply.text);
       if (!parsed.ok) {
@@ -1429,7 +1446,7 @@ details.cx-block > .cx-block-sum { padding: 0; }
           { role: 'assistant', content: reply.text },
           { role: 'user', content: 'Your previous reply could not be parsed as JSON (' + parsed.error + '). Reply again with only the corrected, complete, valid JSON and nothing else.' }
         ]);
-        reply = await callApi(key, body);
+        reply = await callApiThinking(key, body);
         parsed = extractJson(reply.text);
         if (!parsed.ok) throw new Error('Claude returned JSON that could not be parsed, even after one repair attempt.');
       }
